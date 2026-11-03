@@ -3,12 +3,12 @@ import { Driver, DriverStatus, Language, ActiveTab, SeatRequest, TripLogEntry, A
 import { INITIAL_DRIVERS, PRAYER_SHIFT_CONFIGS } from '../data/initialDrivers';
 import { DETOUR_NODES } from '../data/routeNodes';
 import { evaluateGPSLocation, interpolateRoutePoint } from '../utils/geo';
+import { AUTH_DRIVER_KEY, VILLAGER_NAME_KEY, normalizeVillagerName, readDriverSession, readVillagerName, storeIdentity } from '../utils/identityStorage';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
 const REQUESTS_KEY = 'kufr_malik_transit_requests_v6';
 const TRIP_LOGS_KEY = 'kufr_malik_transit_triplogs_v6';
 const TRIP_HISTORY_KEY = 'kufr_malik_transit_history_v6';
-const AUTH_DRIVER_KEY = 'kufr_malik_auth_driver_id_v6';
 const ADMIN_AUTH_KEY = 'kufr_malik_admin_auth_v6';
 const LANG_KEY = 'kufr_malik_transit_lang';
 const CONTRAST_KEY = 'kufr_malik_transit_contrast';
@@ -32,6 +32,8 @@ interface TransitContextType {
   loginDriver: (driverId: string, pin: string) => boolean;
   logoutDriver: () => void;
   activateDriverOnLogin: (driverId: string) => void;
+  villagerName: string;
+  rememberVillagerName: (name: string) => string;
 
   // Driver Availability & Shift controls
   toggleDriverDuty: (driverId: string) => void;
@@ -116,15 +118,17 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   });
 
 
-  const [selectedDriverId, setSelectedDriverId] = useState<string>(drivers[0]?.id || 'driver-1');
+  // Restore only a known roster ID, including sessions saved by older app versions.
+  const [authenticatedDriverId, setAuthenticatedDriverId] = useState<string | null>(() => readDriverSession(drivers));
+  const [selectedDriverId, setSelectedDriverId] = useState<string>(authenticatedDriverId || drivers[0]?.id || 'driver-1');
+  const [villagerName, setVillagerName] = useState(readVillagerName);
 
-  // Driver Auth State
-  const [authenticatedDriverId, setAuthenticatedDriverId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(AUTH_DRIVER_KEY);
-    } catch {}
-    return null;
-  });
+  const rememberVillagerName = useCallback((name: string) => {
+    const normalized = normalizeVillagerName(name);
+    setVillagerName(normalized);
+    storeIdentity(VILLAGER_NAME_KEY, normalized);
+    return normalized;
+  }, []);
 
   // Admin Auth State
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
@@ -134,7 +138,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return false;
   });
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('villager');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(authenticatedDriverId ? 'driver' : 'villager');
 
   const [language, setLanguageState] = useState<Language>(() => {
     try {
@@ -348,7 +352,8 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (driver.pinCode === pin || pin === '1234' || pin === MASTER_ADMIN_PIN) {
       setAuthenticatedDriverId(driverId);
       setSelectedDriverId(driverId);
-      try { localStorage.setItem(AUTH_DRIVER_KEY, driverId); } catch {}
+      storeIdentity(AUTH_DRIVER_KEY, driverId);
+      setActiveTab('driver');
       
       // Automatic Morning Login Duty: auto-set isOnDuty to true and clear inactivity pause
       activateDriverOnLogin(driverId);
@@ -362,8 +367,12 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const logoutDriver = () => {
+    // A shared phone must not keep updating the previous driver's GPS position.
+    stopRealGPSTracking();
+    setIsSimulatingGPS(false);
     setAuthenticatedDriverId(null);
-    try { localStorage.removeItem(AUTH_DRIVER_KEY); } catch {}
+    storeIdentity(AUTH_DRIVER_KEY, null);
+    setActiveTab('driver');
   };
 
   // Admin Login Logic (Master PIN: 9999)
@@ -775,10 +784,12 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     seatCount: number,
     phone?: string
   ) => {
+    const primaryName = rememberVillagerName(passengerName);
+    if (!primaryName) return;
     const newReq: SeatRequest = {
       id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       driverId,
-      passengerName,
+      passengerName: primaryName,
       seatCount,
       phone,
       timestamp: Date.now(),
@@ -935,6 +946,8 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
         authenticatedDriverId,
         loginDriver,
         logoutDriver,
+        villagerName,
+        rememberVillagerName,
         activateDriverOnLogin,
         toggleDriverDuty,
         toggleDriverLateShift,
