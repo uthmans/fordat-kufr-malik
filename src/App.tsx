@@ -35,7 +35,7 @@ const MainAppContent: React.FC = () => {
         {/* Scrollable Viewport: Internal panel scrolling with generous bottom padding for bottom nav */}
         <div
           id="scrollable-panel"
-          className="flex-1 overflow-y-auto overscroll-contain px-3 sm:px-4 py-3 pb-28 space-y-4"
+          className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-3 sm:px-4 py-3 space-y-4"
         >
           {activeTab === 'villager' && <VillagerView />}
           {activeTab === 'driver' && <DriverView />}

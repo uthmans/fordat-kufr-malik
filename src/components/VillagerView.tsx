@@ -114,7 +114,7 @@ export const VillagerView: React.FC = () => {
 
       {/* Direction Filters */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+        <div className="flex flex-wrap items-center gap-1 p-1 max-w-full bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
           <button
             onClick={() => setFilterDirection('all')}
             className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${

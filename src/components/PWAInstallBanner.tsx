@@ -15,16 +15,16 @@ export const PWAInstallBanner: React.FC = () => {
 
   return (
     <>
-      <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 text-slate-950 p-2.5 px-4 rounded-2xl shadow-md flex items-center justify-between gap-3 mb-4 animate-in fade-in duration-200">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 text-slate-950 p-2.5 px-4 rounded-2xl shadow-md flex flex-wrap items-center justify-between gap-3 mb-4 animate-in fade-in duration-200">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-48">
           <div className="w-8 h-8 rounded-xl bg-slate-950 text-amber-400 flex items-center justify-center shrink-0">
             <Smartphone size={16} />
           </div>
           <div className="min-w-0">
-            <h4 className="text-xs font-black truncate">
+            <h4 className="text-xs font-black">
               {isAr ? 'تثبيت تطبيق سرفيس كفر مالك' : 'Install Kufr Malik Transit'}
             </h4>
-            <p className="text-[11px] font-medium text-slate-900 opacity-90 truncate">
+            <p className="text-[11px] font-medium text-slate-900 opacity-90">
               {isAr
                 ? 'تشغيل سريع ومباشر من شاشة الهاتف دون إنترنت'
                 : 'Fast offline access directly on your mobile home screen'}
