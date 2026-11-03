@@ -6,6 +6,7 @@ import { evaluateGPSLocation, interpolateRoutePoint } from '../utils/geo';
 import { acceptBooking, BookingState } from '../utils/bookingAcceptance';
 import { DriverLocationWatch } from '../utils/driverLocationWatch';
 import { inferRouteDirection } from '../utils/routeDirection';
+import { pauseInactiveDrivers, recordDutyMovement } from '../utils/dutyActivity';
 import { AUTH_DRIVER_KEY, VILLAGER_NAME_KEY, normalizeVillagerName, readDriverSession, readVillagerName, storeIdentity } from '../utils/identityStorage';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
@@ -111,7 +112,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
           return parsed.map((d: Driver) => ({
             ...d,
             prayerShift: d.prayerShift || (d.isLateShift ? 'after_maghrib' : 'regular_day'),
-            lastActiveTime: d.lastActiveTime || Date.now(),
+            lastActiveTime: Number.isFinite(d.lastActiveTime) ? d.lastActiveTime : Date.parse(d.lastUpdated),
             autoPausedForInactivity: d.autoPausedForInactivity || false
           }));
         }
@@ -522,39 +523,34 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Kufr Malik 45-minute Inactivity Auto-Timeout Monitor
   useEffect(() => {
-    const FORTY_FIVE_MINS = 45 * 60 * 1000;
-    const interval = setInterval(() => {
+    const checkInactivity = () => {
       const now = Date.now();
       setDrivers((prev) => {
-        let hasChanges = false;
-        const updated = prev.map((d) => {
-          if (
-            d.isOnDuty &&
-            d.status === 'in_kufr_malik' &&
-            d.lastActiveTime &&
-            now - d.lastActiveTime > FORTY_FIVE_MINS
-          ) {
-            hasChanges = true;
-            return {
-              ...d,
-              isOnDuty: false,
-              autoPausedForInactivity: true,
-              lastUpdated: new Date().toISOString()
-            };
-          }
-          return d;
-        });
-
-        if (hasChanges) {
+        const updated = pauseInactiveDrivers(prev, now);
+        if (updated !== prev) {
+          bookingStateRef.current.drivers = updated;
           try { localStorage.setItem(DRIVERS_KEY, JSON.stringify(updated)); } catch {}
           broadcastSync('UPDATE_DRIVERS', updated);
           return updated;
         }
         return prev;
       });
-    }, 30000);
+    };
+    const checkWhenVisible = () => {
+      if (document.visibilityState === 'visible') checkInactivity();
+    };
+    checkInactivity();
+    const interval = setInterval(checkInactivity, 30000);
+    document.addEventListener('visibilitychange', checkWhenVisible);
+    window.addEventListener('focus', checkInactivity);
+    window.addEventListener('pageshow', checkInactivity);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', checkWhenVisible);
+      window.removeEventListener('focus', checkInactivity);
+      window.removeEventListener('pageshow', checkInactivity);
+    };
   }, []);
 
 
@@ -605,6 +601,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
           return {
             ...d,
             status: analysis.status,
+            ...recordDutyMovement(d, location, gpsMode, Date.now()),
             currentLocation: location,
             directionAnchor: movement.anchor,
             gpsMode,
