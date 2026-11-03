@@ -96,8 +96,8 @@ export const DriverLoginView: React.FC = () => {
               >
                 <div className="text-xs font-black truncate">{displayName}</div>
                 <div className="text-[10px] opacity-80 mt-1 flex items-center justify-center gap-1 font-mono">
-                  <span className={`w-1.5 h-1.5 rounded-full ${d.isOnDuty ? 'bg-emerald-600' : 'bg-slate-400'}`} />
-                  <span>{d.isOnDuty ? (isAr ? 'متاح' : 'On Duty') : (isAr ? 'عطلة' : 'Off')}</span>
+                  <span className={`w-1.5 h-1.5 rounded-full ${d.gpsMode === 'live' && d.isOnDuty ? 'bg-emerald-600' : 'bg-slate-400'}`} />
+                  <span>{d.gpsMode !== 'live' ? (isAr ? 'الحالة غير مؤكدة' : 'Status unconfirmed') : d.isOnDuty ? (isAr ? 'متاح' : 'On Duty') : (isAr ? 'عطلة' : 'Off')}</span>
                 </div>
               </button>
             );

@@ -3,7 +3,7 @@ import { useTransit } from '../context/TransitContext';
 import { Bus, Sun, Moon } from 'lucide-react';
 
 export const Header: React.FC = () => {
-  const { language, setLanguage, highContrast, setHighContrast, isTrackingRealGPS, isSimulatingGPS } = useTransit();
+  const { language, setLanguage, highContrast, setHighContrast, isTrackingRealGPS, isSimulatingGPS, showDemoData, isOnline } = useTransit();
   const isAr = language === 'ar';
 
   return (
@@ -21,12 +21,13 @@ export const Header: React.FC = () => {
             <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-medium -mt-0.5 truncate">
               <span>{isAr ? 'خط كفر مالك ⇄ الموقف' : 'Kufr Malik ⇄ Ramallah'}</span>
               <span>·</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+              <span className="text-amber-700 dark:text-amber-400 font-bold">
                 {isTrackingRealGPS
-                  ? isAr ? 'GPS مباشر' : 'GPS Live'
+                  ? isAr ? 'GPS الهاتف' : 'Phone GPS'
                   : isSimulatingGPS
                   ? isAr ? 'محاكاة نشطة' : 'Sim Active'
-                  : isAr ? 'متصل' : 'Online'}
+                  : !isOnline ? (isAr ? 'دون اتصال' : 'Offline')
+                  : showDemoData ? (isAr ? 'تجريبي' : 'Demo') : (isAr ? 'هذا الجهاز' : 'This device')}
               </span>
             </div>
           </div>

@@ -7,6 +7,7 @@ import { acceptBooking, BookingState } from '../utils/bookingAcceptance';
 import { DriverLocationWatch } from '../utils/driverLocationWatch';
 import { inferRouteDirection } from '../utils/routeDirection';
 import { pauseInactiveDrivers, recordDutyMovement } from '../utils/dutyActivity';
+import { isDemoRequest, isDemoLog, isDemoArchive } from '../utils/dataFreshness';
 import { AUTH_DRIVER_KEY, VILLAGER_NAME_KEY, normalizeVillagerName, readDriverSession, readVillagerName, storeIdentity } from '../utils/identityStorage';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
@@ -20,6 +21,10 @@ const CONTRAST_KEY = 'kufr_malik_transit_contrast';
 const MASTER_ADMIN_PIN = '9999';
 
 interface TransitContextType {
+  showDemoData: boolean;
+  setShowDemoData: (value: boolean) => void;
+  dataNow: number;
+  isOnline: boolean;
   drivers: Driver[];
   currentDriver: Driver | undefined;
   selectedDriverId: string;
@@ -103,6 +108,28 @@ interface TransitContextType {
 const TransitContext = createContext<TransitContextType | undefined>(undefined);
 
 export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [showDemoData, setShowDemoDataState] = useState(() => {
+    try { return localStorage.getItem('kufr_malik_show_demo_v1') === 'true'; } catch { return false; }
+  });
+  const setShowDemoData = (value: boolean) => {
+    setShowDemoDataState(value);
+    try { localStorage.setItem('kufr_malik_show_demo_v1', String(value)); } catch {}
+  };
+  const [dataNow, setDataNow] = useState(Date.now);
+  const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
+  useEffect(() => {
+    const refresh = () => { setDataNow(Date.now()); setIsOnline(navigator.onLine); };
+    const interval = setInterval(refresh, 15000);
+    window.addEventListener('online', refresh);
+    window.addEventListener('offline', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('online', refresh);
+      window.removeEventListener('offline', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
   const [drivers, setDrivers] = useState<Driver[]>(() => {
     try {
       const saved = localStorage.getItem(DRIVERS_KEY) || localStorage.getItem('kufr_malik_transit_drivers_v7');
@@ -168,26 +195,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const saved = localStorage.getItem(REQUESTS_KEY);
       if (saved) return JSON.parse(saved);
     } catch {}
-    return [
-      {
-        id: 'req-sample-1',
-        driverId: 'driver-1',
-        passengerName: 'Ahmad Kanaan',
-        seatCount: 1,
-        phone: '+972599111222',
-        timestamp: Date.now() - 5 * 60 * 1000,
-        status: 'pending'
-      },
-      {
-        id: 'req-sample-2',
-        driverId: 'driver-3',
-        passengerName: 'Um Mohammad',
-        seatCount: 2,
-        phone: '+972598333444',
-        timestamp: Date.now() - 2 * 60 * 1000,
-        status: 'pending'
-      }
-    ];
+    return [];
   });
 
   // Active Trip Log (passengers for current round)
@@ -196,26 +204,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const saved = localStorage.getItem(TRIP_LOGS_KEY);
       if (saved) return JSON.parse(saved);
     } catch {}
-    return [
-      {
-        id: 'log-1',
-        driverId: 'driver-1',
-        passengerName: 'Zaid Khader',
-        seatCount: 2,
-        phone: '+972599555666',
-        status: 'confirmed',
-        confirmedAt: Date.now() - 15 * 60 * 1000
-      },
-      {
-        id: 'log-2',
-        driverId: 'driver-1',
-        passengerName: 'Ibrahim Hamed',
-        seatCount: 1,
-        phone: '+972568777888',
-        status: 'confirmed',
-        confirmedAt: Date.now() - 8 * 60 * 1000
-      }
-    ];
+    return [];
   });
 
   // Archived Trips History
@@ -224,21 +213,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const saved = localStorage.getItem(TRIP_HISTORY_KEY);
       if (saved) return JSON.parse(saved);
     } catch {}
-    return [
-      {
-        id: 'arch-1',
-        driverId: 'driver-1',
-        timestamp: Date.now() - 2 * 3600 * 1000,
-        formattedDate: 'Today, 08:30 AM',
-        passengersCount: 7,
-        locationStatus: 'in_ramallah',
-        entries: [
-          { id: 'h-1', driverId: 'driver-1', passengerName: 'Abu Fadi', seatCount: 2, phone: '+972599112233', status: 'confirmed', confirmedAt: Date.now() - 3 * 3600 * 1000 },
-          { id: 'h-2', driverId: 'driver-1', passengerName: 'Khaled', seatCount: 3, phone: '+972598223344', status: 'confirmed', confirmedAt: Date.now() - 2.8 * 3600 * 1000 },
-          { id: 'h-3', driverId: 'driver-1', passengerName: 'Tariq', seatCount: 2, phone: '+972569334455', status: 'confirmed', confirmedAt: Date.now() - 2.5 * 3600 * 1000 }
-        ]
-      }
-    ];
+    return [];
   });
 
   // Read the latest accepted changes even before React renders a second tap.
@@ -754,7 +729,9 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Passenger counter
   const updateDriverPassengers = (id: string, count: number) => {
-    const clamped = Math.max(0, Math.min(7, count));
+    const driver = drivers.find((candidate) => candidate.id === id);
+    if (!driver || !Number.isInteger(count) || !Number.isInteger(driver.maxCapacity) || driver.maxCapacity < 1) return;
+    const clamped = Math.max(0, Math.min(driver.maxCapacity, count));
     if (typeof window !== 'undefined' && navigator.vibrate) {
       try { navigator.vibrate(20); } catch {}
     }
@@ -763,6 +740,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ? {
             ...d,
             passengers: clamped,
+            seatCountUpdatedAt: Date.now(),
             lastActiveTime: Date.now(),
             autoPausedForInactivity: false,
             lastUpdated: new Date().toISOString()
@@ -878,7 +856,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Archive Current Trip & Reset Active Log for new trip
   const archiveCurrentTrip = (driverId: string) => {
     const driver = drivers.find((d) => d.id === driverId);
-    const driverEntries = tripLogs.filter((l) => l.driverId === driverId);
+    const driverEntries = tripLogs.filter((l) => l.driverId === driverId && (showDemoData || !isDemoLog(l)));
     const totalSeats = driverEntries.reduce((sum, e) => sum + e.seatCount, 0) || (driver?.passengers ?? 0);
 
     const now = new Date();
@@ -896,7 +874,8 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
       formattedDate,
       passengersCount: Math.min(7, totalSeats),
       locationStatus: driver?.status || 'in_kufr_malik',
-      entries: driverEntries
+      entries: driverEntries,
+      isDemo: driverEntries.some(isDemoLog)
     };
 
     saveTripHistory([newArchivedTrip, ...tripHistory]);
@@ -941,6 +920,10 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   return (
     <TransitContext.Provider
       value={{
+        showDemoData,
+        setShowDemoData,
+        dataNow,
+        isOnline,
         drivers,
         currentDriver,
         selectedDriverId,
@@ -980,12 +963,12 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setSimulationDirection,
         isDetourSimulated,
         toggleDetourSimulation,
-        seatRequests,
+        seatRequests: showDemoData ? seatRequests : seatRequests.filter((request) => !isDemoRequest(request)),
         requestSeat,
         acceptSeatRequest,
         declineSeatRequest,
-        tripLogs,
-        tripHistory,
+        tripLogs: showDemoData ? tripLogs : tripLogs.filter((entry) => !isDemoLog(entry)),
+        tripHistory: showDemoData ? tripHistory : tripHistory.filter((trip) => !isDemoArchive(trip)),
         addTripLogEntry,
         clearTripLog,
         archiveCurrentTrip,

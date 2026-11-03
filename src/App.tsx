@@ -5,6 +5,7 @@ import { BottomNav } from './components/BottomNav';
 import { VillagerView } from './components/VillagerView';
 import { DriverView } from './components/DriverView';
 import { SettingsView } from './components/SettingsView';
+import { DataStatusBanner } from './components/DataStatusBanner';
 
 const MainAppContent: React.FC = () => {
   const { activeTab, language, highContrast } = useTransit();
@@ -37,6 +38,7 @@ const MainAppContent: React.FC = () => {
           id="scrollable-panel"
           className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-3 sm:px-4 py-3 space-y-4"
         >
+          <DataStatusBanner />
           {activeTab === 'villager' && <VillagerView />}
           {activeTab === 'driver' && <DriverView />}
           {activeTab === 'settings' && <SettingsView />}
