@@ -91,6 +91,7 @@ export interface Driver {
   // GPS fields
   currentLocation: GPSLocation;
   directionAnchor?: GPSLocation;
+  dutyMovementAnchor?: GPSLocation;
   detectedNodeId: string;
   isDetour: boolean;
   detourNameEn?: string;
