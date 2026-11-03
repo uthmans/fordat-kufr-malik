@@ -27,8 +27,8 @@ jobs:
           bun-version: latest
       - name: Install dependencies
         run: bun install --frozen-lockfile
-      - name: Check route layout
-        run: bun test src/utils/routePinLayout.test.ts
+      - name: Run regression tests
+        run: bun test src/utils
       - name: Check types
         run: bun run lint
       - name: Build site

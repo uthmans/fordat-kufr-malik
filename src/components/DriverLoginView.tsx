@@ -61,6 +61,7 @@ export const DriverLoginView: React.FC = () => {
             ? 'اختر اسمك من قائمة سائقي كفر مالك وأدخل رمز PIN السريع'
             : 'Select your driver profile and enter your 4-digit PIN'}
         </p>
+        <p className="text-[11px] text-slate-400">{isAr ? 'سنتذكر دخولك على هذا الجهاز حتى تختار تغيير السائق' : 'Stay signed in on this device until you choose Switch Driver'}</p>
       </div>
 
       {/* Driver Selection Grid - 8 Drivers */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTransit } from '../context/TransitContext';
 import { STATUS_CONFIGS, PRAYER_SHIFT_CONFIGS, DEPARTURE_COUNTDOWN_CONFIGS } from '../data/initialDrivers';
 import { PrayerShiftPreset, DepartureCountdown } from '../types';
@@ -32,7 +32,6 @@ export const DriverView: React.FC = () => {
     currentDriver,
     authenticatedDriverId,
     logoutDriver,
-    activateDriverOnLogin,
     toggleDriverDuty,
     setDriverPrayerShift,
     setDepartureCountdown,
@@ -48,12 +47,8 @@ export const DriverView: React.FC = () => {
   const isAr = language === 'ar';
   const [showProfileModal, setShowProfileModal] = useState(false);
 
-  // Automatic Morning Login Duty: ensure driver is active on view mount
-  useEffect(() => {
-    if (authenticatedDriverId && currentDriver && !currentDriver.isOnDuty && !currentDriver.autoPausedForInactivity) {
-      activateDriverOnLogin(authenticatedDriverId);
-    }
-  }, [authenticatedDriverId, currentDriver?.id, activateDriverOnLogin]);
+  // Explicit login activates duty in the provider. Restoring a remembered session
+  // must preserve manual pauses and the 45-minute inactivity timeout.
 
   // If driver is not authenticated yet, show clean PIN login view
   if (!authenticatedDriverId || !currentDriver) {

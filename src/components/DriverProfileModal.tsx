@@ -10,7 +10,7 @@ interface DriverProfileModalProps {
 }
 
 export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, onClose }) => {
-  const { updateDriverProfile, tripHistory, language } = useTransit();
+  const { updateDriverProfile, tripHistory, language, logoutDriver } = useTransit();
   const isAr = language === 'ar';
 
   const [nameAr, setNameAr] = useState(driver.nameAr);
@@ -43,7 +43,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-200">
+      <div role="dialog" aria-modal="true" aria-label={isAr ? 'ملف السائق وسجل الرحلات' : 'Driver Profile & Trips'} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[90dvh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-200">
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -107,6 +107,14 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
           {activeTab === 'profile' ? (
             <form onSubmit={handleSave} className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <p className="text-[11px] text-slate-500">{isAr ? 'تم تذكر دخولك على هذا الجهاز' : 'Your login is remembered on this device'}</p>
+                <button type="button" onClick={() => { onClose(); logoutDriver(); }}
+                  className="min-h-10 px-2 text-xs font-bold text-slate-600 dark:text-slate-300 underline underline-offset-4 hover:text-amber-600">
+                  {isAr ? 'تغيير السائق' : 'Switch Driver'}
+                </button>
+              </div>
+
               {/* Arabic Name */}
               <div>
                 <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">
