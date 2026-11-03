@@ -9,6 +9,25 @@ interface RouteVisualizerProps {
   onSelectDriver?: (driverId: string) => void;
 }
 
+// Helper to display full honorific titles like "Abu Haroon" / "أبو هارون" without truncating to lone "Abu"
+const formatDriverPinName = (fullName: string, isArabic: boolean): string => {
+  if (!fullName) return '';
+  const trimmed = fullName.trim();
+  const words = trimmed.split(/\s+/);
+
+  if (isArabic) {
+    if (words[0] === 'أبو' || words[0] === 'ابو') {
+      return words.length > 1 ? `${words[0]} ${words[1]}` : words[0];
+    }
+    return words[0];
+  } else {
+    if (words[0].toLowerCase() === 'abu') {
+      return words.length > 1 ? `${words[0]} ${words[1]}` : words[0];
+    }
+    return words[0];
+  }
+};
+
 export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({
   drivers,
   language,
@@ -60,8 +79,8 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({
       )}
 
       {/* Live Track Line */}
-      <div className="relative pt-24 pb-3 px-2">
-        <div className="h-3 w-full bg-slate-200 dark:bg-slate-800 rounded-full relative overflow-visible">
+      <div className="relative pt-36 pb-3 px-3">
+        <div className="h-3 w-full bg-slate-200 dark:bg-slate-800 rounded-full relative overflow-visible" dir="ltr">
           {/* Dashed center lane */}
           <div className="absolute inset-x-2 top-1/2 -translate-y-1/2 h-[2px] border-t border-dashed border-slate-400 dark:border-slate-600" />
 
@@ -92,38 +111,57 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({
             );
           })}
 
-          {/* Live Driver Position Pins (Tiered Staggering to Prevent Horizontal Pill Collisions) */}
+          {/* Live Driver Position Pins (Tiered Staggering & Collision Prevention) */}
           {(() => {
-            // Sort by position along the corridor
-            const sorted = drivers
+            // 1. Sort by position along the corridor
+            const rawMapped = drivers
               .map((d) => ({
                 driver: d,
-                pos: Math.max(5, Math.min(95, getDriverProgress(d)))
+                rawPos: Math.max(4, Math.min(96, getDriverProgress(d)))
               }))
-              .sort((a, b) => a.pos - b.pos);
+              .sort((a, b) => a.rawPos - b.rawPos);
 
-            // Assign vertical tiers (0, 1, 2) when pins are within 13% collision distance
-            const tiered: { driver: Driver; pos: number; tier: number }[] = [];
-            sorted.forEach((item, idx) => {
-              let tier = 0;
-              for (let i = idx - 1; i >= 0; i--) {
-                const prev = tiered[i];
-                if (Math.abs(item.pos - prev.pos) < 13) {
-                  if (prev.tier === tier) {
-                    tier = (prev.tier + 1) % 3;
-                  }
+            // 2. Add micro-horizontal separation for drivers waiting at the same node/terminal
+            const spaced: { driver: Driver; pos: number }[] = [];
+            rawMapped.forEach((item) => {
+              let pos = item.rawPos;
+              const sameCluster = spaced.filter((p) => Math.abs(p.pos - item.rawPos) < 4);
+              if (sameCluster.length > 0) {
+                if (pos <= 15) {
+                  // Push slightly towards the right from Kufr Malik
+                  pos = Math.min(20, pos + sameCluster.length * 3.5);
+                } else if (pos >= 85) {
+                  // Push slightly towards the left from Ramallah
+                  pos = Math.max(80, pos - sameCluster.length * 3.5);
+                } else {
+                  const direction = sameCluster.length % 2 === 1 ? 1 : -1;
+                  pos = Math.max(6, Math.min(94, pos + direction * sameCluster.length * 3.5));
                 }
               }
-              tiered.push({ ...item, tier });
+              spaced.push({ driver: item.driver, pos });
+            });
+
+            // 3. Collision-free vertical tier assignment:
+            // Two drivers within 20% corridor distance will never share the same vertical level
+            const COLLISION_DISTANCE = 20;
+            const tiered: { driver: Driver; pos: number; tier: number }[] = [];
+            spaced.forEach((item) => {
+              const conflicting = tiered.filter(
+                (prev) => Math.abs(prev.pos - item.pos) < COLLISION_DISTANCE
+              );
+              const usedTiers = new Set(conflicting.map((c) => c.tier));
+              let tier = 0;
+              while (usedTiers.has(tier)) {
+                tier++;
+              }
+              tiered.push({ driver: item.driver, pos: item.pos, tier });
             });
 
             return tiered.map(({ driver, pos, tier }) => {
               const vacant = driver.maxCapacity - driver.passengers;
-              const firstName = isAr
-                ? driver.nameAr.split(' ')[0]
-                : driver.nameEn.split(' ')[0];
+              const displayName = formatDriverPinName(isAr ? driver.nameAr : driver.nameEn, isAr);
 
-              // Pluralization
+              // Seat count pluralization
               let vacantText = '';
               if (vacant <= 0) {
                 vacantText = isAr ? 'مكتمل' : 'FULL';
@@ -133,26 +171,38 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({
                 vacantText = vacant === 1 ? '1 seat' : `${vacant} seats`;
               }
 
-              // Vertical tier calculation
-              const topOffset = -30 - tier * 30;
-              const stemHeight = 6 + tier * 30;
+              // Vertical tier calculation (ample headroom in pt-36 container)
+              const tierHeightStep = 28;
+              const topOffset = -26 - tier * tierHeightStep;
+              const stemHeight = 4 + tier * tierHeightStep;
+
+              // Prevent horizontal clipping at edges:
+              // If near left edge (pos < 18%), shift pill rightwards
+              // If near right edge (pos > 82%), shift pill leftwards
+              // Otherwise center pill over stem
+              const pillHorizontalAlign =
+                pos < 18
+                  ? 'self-start -translate-x-2'
+                  : pos > 82
+                  ? 'self-end translate-x-2'
+                  : 'self-center';
 
               return (
                 <div
                   key={driver.id}
                   onClick={() => onSelectDriver && onSelectDriver(driver.id)}
-                  className="absolute -translate-x-1/2 cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95"
+                  className="absolute cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95"
                   style={{
                     left: `${pos}%`,
                     top: `${topOffset}px`,
-                    zIndex: 20 + tier
+                    zIndex: 20 + tier * 5
                   }}
                   title={`${isAr ? driver.nameAr : driver.nameEn} (${vacantText})`}
                 >
                   <div className="flex flex-col items-center">
-                    {/* Floating Pill */}
+                    {/* Floating Pill with edge-aware horizontal anchor */}
                     <div
-                      className={`px-2 py-0.5 rounded-lg text-[10px] font-black text-white shadow-md flex items-center gap-1 whitespace-nowrap border border-white/20 ${
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-black text-white shadow-md flex items-center gap-1 whitespace-nowrap border border-white/20 select-none ${pillHorizontalAlign} ${
                         driver.isDetour
                           ? 'bg-orange-600 ring-2 ring-orange-300'
                           : driver.status === 'in_kufr_malik'
@@ -164,12 +214,12 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({
                           : 'bg-purple-600'
                       }`}
                     >
-                      <span className="opacity-90">{firstName}:</span>
+                      <span className="opacity-95">{displayName}:</span>
                       <span className="font-mono font-extrabold">{vacantText}</span>
                       {driver.isDetour && <span>⚠️</span>}
                     </div>
 
-                    {/* Connecting stem down to track */}
+                    {/* Connecting stem down to track line */}
                     <div
                       className={`w-[2px] transition-all ${
                         driver.isDetour
@@ -193,8 +243,8 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({
           })()}
         </div>
 
-        {/* Start and End labels below track (Strictly Kufr Malik & Ramallah / كفر مالك والموقف) */}
-        <div className="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 mt-4 pt-1">
+        {/* Start and End labels below track (Strictly Kufr Malik on left, Ramallah on right) */}
+        <div className="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 mt-4 pt-1" dir="ltr">
           <div className="flex items-center gap-1 font-extrabold text-slate-800 dark:text-slate-200">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             <span>{isAr ? 'كفر مالك' : 'Kufr Malik'}</span>

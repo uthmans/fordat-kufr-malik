@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
 import { TransitProvider, useTransit } from './context/TransitContext';
-import { StatusBar } from './components/StatusBar';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
 import { VillagerView } from './components/VillagerView';
@@ -30,9 +29,6 @@ const MainAppContent: React.FC = () => {
     >
       {/* Smartphone Container: Full width on mobile, comfortably sized on tablets/desktops without cramping */}
       <div className="w-full max-w-lg h-full flex flex-col bg-slate-50 dark:bg-slate-950 border-x border-slate-200 dark:border-slate-800 shadow-2xl relative overflow-hidden">
-        {/* Native Mobile Status Bar (Jawwal, 4G, Battery, Wi-Fi) */}
-        <StatusBar />
-
         {/* Mobile App Bar */}
         <Header />
 
