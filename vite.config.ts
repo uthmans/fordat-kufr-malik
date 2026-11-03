@@ -5,31 +5,33 @@ import {defineConfig} from 'vite';
 import {VitePWA} from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
+  const base = '/fordat-kufr-malik/';
   return {
+    base,
     plugins: [
       react(),
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
         manifest: {
-          id: '/',
+          id: base,
           name: 'Kufr Malik Transit | سرفيس كفر مالك',
           short_name: 'KM Transit',
           description: 'Real-time shared taxi and bus tracker between Kufr Malik and Ramallah.',
           theme_color: '#f59e0b',
           background_color: '#0f172a',
           display: 'standalone',
-          start_url: '/',
-          scope: '/',
+          start_url: base,
+          scope: base,
           icons: [
             {
-              src: '/pwa-192x192.svg',
+              src: `${base}pwa-192x192.svg`,
               sizes: '192x192',
               type: 'image/svg+xml',
               purpose: 'any'
             },
             {
-              src: '/pwa-512x512.svg',
+              src: `${base}pwa-512x512.svg`,
               sizes: '512x512',
               type: 'image/svg+xml',
               purpose: 'any'
