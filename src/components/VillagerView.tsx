@@ -5,8 +5,7 @@ import { PRAYER_SHIFT_CONFIGS, DEPARTURE_COUNTDOWN_CONFIGS } from '../data/initi
 import { SeatVisualizer } from './SeatVisualizer';
 import { RouteVisualizer } from './RouteVisualizer';
 import { PWAInstallBanner } from './PWAInstallBanner';
-import { buildVillagerReservationUrl } from '../utils/whatsapp';
-import { normalizeVillagerName } from '../utils/identityStorage';
+import { PreparedReservation, ReservationHandoff } from '../utils/reservationHandoff';
 import { hasRecentGPS, hasConfirmedSeats, isDemoDriver } from '../utils/dataFreshness';
 import {
   MessageSquare,
@@ -18,7 +17,6 @@ import {
   Sunset,
   Flag,
   Clock,
-  CheckCircle2,
   X,
   Coffee,
   Zap,
@@ -36,7 +34,9 @@ export const VillagerView: React.FC = () => {
   const [nameError, setNameError] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [passengerCount, setPassengerCount] = useState(1);
-  const [requestSent, setRequestSent] = useState(false);
+  const [preparedReservation, setPreparedReservation] = useState<PreparedReservation | null>(null);
+  const [handoffError, setHandoffError] = useState<'seats' | 'phone' | null>(null);
+  const handoffRef = useRef(new ReservationHandoff());
 
   const isAr = language === 'ar';
 
@@ -66,7 +66,9 @@ export const VillagerView: React.FC = () => {
 
   const handleOpenWhatsAppModal = (driver: Driver) => {
     setRequestingForDriver(driver);
-    setRequestSent(false);
+    setPreparedReservation(null);
+    setHandoffError(null);
+    handoffRef.current.reset();
     setPassengerName(villagerName);
     setIsEditingName(!villagerName);
     setNameError(false);
@@ -75,36 +77,20 @@ export const VillagerView: React.FC = () => {
 
   const handleLaunchWhatsApp = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requestingForDriver || requestSent) return;
-
-    const pName = normalizeVillagerName(passengerName);
-    if (!pName) {
-      setNameError(true);
-      nameInputRef.current?.focus();
+    if (!requestingForDriver || preparedReservation) return;
+    const result = handoffRef.current.submit({
+      driverId: requestingForDriver.id, phone: requestingForDriver.phone,
+      name: passengerName, seats: passengerCount, capacity: requestingForDriver.maxCapacity, isArabic: isAr
+    }, (reservation) => requestSeat(reservation.driverId, reservation.name, reservation.seats),
+    (url) => { window.open(url, '_blank', 'noopener,noreferrer'); });
+    if (!result.ok) {
+      if (result.error === 'name') {
+        setNameError(true);
+        nameInputRef.current?.focus();
+      } else setHandoffError(result.error);
       return;
     }
-
-    // Broadcast in-app request to driver
-    requestSeat(
-      requestingForDriver.id,
-      pName,
-      passengerCount
-    );
-
-    // Pre-filled WhatsApp message
-    const url = buildVillagerReservationUrl(
-      requestingForDriver.phone,
-      pName,
-      passengerCount,
-      isAr
-    );
-
-    setRequestSent(true);
-    setTimeout(() => {
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setRequestingForDriver(null);
-      setRequestSent(false);
-    }, 600);
+    setPreparedReservation(result.value);
   };
 
   return (
@@ -382,20 +368,29 @@ export const VillagerView: React.FC = () => {
               </button>
             </div>
 
-            {requestSent ? (
-              <div className="py-8 text-center space-y-2 animate-in zoom-in-95 duration-200">
-                <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 mx-auto flex items-center justify-center">
-                  <CheckCircle2 size={28} />
+            {preparedReservation ? (
+              <div className="py-5 text-center space-y-4 animate-in zoom-in-95 duration-200">
+                <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-600 mx-auto flex items-center justify-center">
+                  <MessageSquare size={28} />
                 </div>
                 <h4 className="font-black text-sm text-slate-900 dark:text-slate-100">
-                  {isAr ? 'جاري فتح محادثة واتساب...' : 'Opening WhatsApp...'}
+                  {isAr ? 'الرسالة جاهزة لواتساب' : 'Message ready for WhatsApp'}
                 </h4>
                 <p className="text-xs text-slate-500">
-                  {isAr ? 'تم تجهيز الرسالة. أرسلها في واتساب ليصل طلبك للسائق.' : 'Your message is ready. Send it in WhatsApp to reach the driver.'}
+                  {isAr ? 'أرسل الرسالة في واتساب وانتظر تأكيد السائق. تجهيز الرسالة لا يؤكد الحجز.' : 'Send the message in WhatsApp and wait for the driver to confirm. Preparing a message does not confirm a booking.'}
                 </p>
+                <p dir="auto" className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-start text-xs text-slate-700 dark:text-slate-200 break-words">{preparedReservation.message}</p>
+                <a href={preparedReservation.url} target="_blank" rel="noopener noreferrer" className="w-full min-h-12 p-3 rounded-2xl bg-[#25D366] text-white font-black text-sm flex items-center justify-center gap-2">
+                  <MessageSquare size={18} />{isAr ? 'فتح واتساب' : 'Open WhatsApp'}
+                </a>
+                <p className="text-[11px] text-slate-500">{isAr ? 'إذا لم يفتح واتساب، اضغط الزر أعلاه. لن يتكرر الطلب المحفوظ.' : 'If WhatsApp did not open, use the button above. It will not duplicate the saved request.'}</p>
+                <button type="button" onClick={() => setRequestingForDriver(null)} className="w-full min-h-11 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs">{isAr ? 'تم' : 'Done'}</button>
               </div>
             ) : (
               <form onSubmit={handleLaunchWhatsApp} className="space-y-4 py-4">
+                {handoffError && <p role="alert" className="text-xs font-bold text-rose-600 dark:text-rose-400">{handoffError === 'phone'
+                  ? (isAr ? 'رقم واتساب السائق غير صالح. اختر سائقاً آخر.' : 'This driver’s WhatsApp number is invalid. Choose another driver.')
+                  : (isAr ? 'عدد المقاعد غير صالح لهذه السيارة.' : 'The seat count is invalid for this vehicle.')}</p>}
                 <p className="text-xs text-amber-700 dark:text-amber-300">{isAr ? 'التوفر يحتاج تأكيد السائق عبر واتساب. هذا طلب حجز وليس تأكيداً.' : 'The driver must confirm availability through WhatsApp. This is a request, not a confirmed booking.'}</p>
                 {/* 1. Name */}
                 <div>
@@ -444,7 +439,7 @@ export const VillagerView: React.FC = () => {
                         key={num}
                         type="button"
                         aria-pressed={passengerCount === num}
-                        onClick={() => setPassengerCount(num)}
+                        onClick={() => { setPassengerCount(num); setHandoffError(null); }}
                         className={`flex-1 py-2.5 rounded-2xl text-xs font-black transition-all ${
                           passengerCount === num
                             ? 'bg-[#25D366] text-white ring-2 ring-emerald-600 scale-102 shadow-sm'
@@ -479,7 +474,7 @@ export const VillagerView: React.FC = () => {
 
                 <button
                   type="submit"
-                  disabled={requestSent}
+                  disabled={!!preparedReservation}
                   className="w-full min-h-[48px] py-3 bg-[#25D366] hover:bg-[#20ba59] active:scale-98 text-white font-black text-xs rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all tap-highlight"
                 >
                   <MessageSquare size={16} className="fill-white" />
