@@ -146,6 +146,13 @@ export function generateProximityText(
     };
   }
 
+  if (bearing === 'stationary') {
+    return {
+      proximityTextEn: `${driverNameEn} is near ${nearestNode.nameEn}`,
+      proximityTextAr: `${driverNameAr} قرب ${nearestNode.nameAr}`
+    };
+  }
+
   if (bearing === 'southbound') {
     return {
       proximityTextEn: `${driverNameEn} is passing ${nearestNode.nameEn}`,
@@ -163,9 +170,10 @@ export function generateProximityText(
 export function evaluateGPSLocation(
   lat: number,
   lng: number,
-  prevProgress: number = 0,
+  movementBearing: 'southbound' | 'northbound' | 'stationary' = 'stationary',
   driverNameEn: string = 'Driver',
-  driverNameAr: string = 'السائق'
+  driverNameAr: string = 'السائق',
+  previousStatus?: DriverStatus
 ): AutoAnalysisResult {
   const kmNode = ROUTE_NODES[0];
   const rmNode = ROUTE_NODES[ROUTE_NODES.length - 1];
@@ -178,17 +186,15 @@ export function evaluateGPSLocation(
   const { detour, distanceMeters: detourDist } = getNearestDetour(lat, lng);
   const isDetour = distToCorridor > 1600 || detourDist < 2200;
 
-  const totalLength = rmNode.distanceKmFromStart;
-  let progressPercent = (nearestNode.distanceKmFromStart / totalLength) * 100;
-  progressPercent = Math.max(0, Math.min(100, Math.round(progressPercent)));
-
-  const isMovingTowardsRamallah = progressPercent >= prevProgress;
+  const progressPercent = getRouteProgressPercent(lat, lng);
   const bearing: 'southbound' | 'northbound' | 'stationary' =
     distToKM < 700 || distToRM < 450
       ? 'stationary'
-      : isMovingTowardsRamallah
-      ? 'southbound'
-      : 'northbound';
+      : movementBearing;
+  // Stationary GPS noise must not reverse a previously known trip direction.
+  const travelStatus: DriverStatus = bearing === 'northbound' ? 'to_kufr_malik'
+    : bearing === 'southbound' ? 'to_ramallah'
+    : previousStatus === 'to_kufr_malik' ? 'to_kufr_malik' : 'to_ramallah';
 
   if (isDetour) {
     const text = generateProximityText(
@@ -269,7 +275,7 @@ export function evaluateGPSLocation(
 
   // B. Near Friends School - "قريب من مدرسة الفرندز"
   if (distToFriends <= friendsLandmark.radiusMeters || (distToRM < 1100 && distToRM >= 450)) {
-    const status: DriverStatus = bearing === 'northbound' ? 'to_kufr_malik' : 'to_ramallah';
+    const status = travelStatus;
     return {
       status,
       detectedNode: rmNode,
@@ -285,7 +291,7 @@ export function evaluateGPSLocation(
 
   // C. Near Al Shini Market - "قريب من سوبرماركت الشيني"
   if (distToShini <= shiniLandmark.radiusMeters || (distToRM < 2000 && distToRM >= 1100)) {
-    const status: DriverStatus = bearing === 'northbound' ? 'to_kufr_malik' : 'to_ramallah';
+    const status = travelStatus;
     return {
       status,
       detectedNode: rmNode,
@@ -301,6 +307,14 @@ export function evaluateGPSLocation(
 
   // D. Entering Ramallah - "داخل إلى رام الله"
   if (distToEntering <= enteringLandmark.radiusMeters || (distToRM < 3200 && distToRM >= 2000)) {
+    if (bearing === 'stationary') {
+      return {
+        status: travelStatus, detectedNode: rmNode, isDetour: false, progressPercent, bearing,
+        proximityTextEn: `${driverNameEn} is near Ramallah`,
+        proximityTextAr: `${driverNameAr} قرب رام الله`,
+        customStopEn: 'Near Ramallah', customStopAr: 'قرب رام الله'
+      };
+    }
     if (bearing === 'southbound') {
       return {
         status: 'to_ramallah',
@@ -329,7 +343,7 @@ export function evaluateGPSLocation(
   }
 
   // 3. Regular Route Progression (Between Kufr Malik and Ramallah outskirts)
-  const status: DriverStatus = bearing === 'southbound' ? 'to_ramallah' : 'to_kufr_malik';
+  const status = travelStatus;
   const text = generateProximityText(
     driverNameEn,
     driverNameAr,
@@ -365,6 +379,30 @@ const DETAILED_ROUTE_WAYPOINTS = [
   { lat: 31.9085, lng: 35.2050, km: 22.3 },  // Near Friends School
   { lat: 31.9038, lng: 35.2034, km: 23.0 }   // Ramallah Station (الموقف)
 ];
+
+// Continuous progress along the route, without snapping to the nearest stop.
+export function getRouteProgressPercent(lat: number, lng: number): number {
+  let nearestDistance = Infinity;
+  let routeKm = 0;
+  // Project onto each segment in a local plane, accounting for longitude scale.
+  const longitudeScale = Math.cos(lat * Math.PI / 180);
+  for (let i = 0; i < DETAILED_ROUTE_WAYPOINTS.length - 1; i++) {
+    const a = DETAILED_ROUTE_WAYPOINTS[i];
+    const b = DETAILED_ROUTE_WAYPOINTS[i + 1];
+    const dx = (b.lng - a.lng) * longitudeScale;
+    const dy = b.lat - a.lat;
+    const px = (lng - a.lng) * longitudeScale;
+    const py = lat - a.lat;
+    const lengthSquared = dx * dx + dy * dy;
+    const fraction = lengthSquared ? Math.max(0, Math.min(1, (px * dx + py * dy) / lengthSquared)) : 0;
+    const distance = (px - fraction * dx) ** 2 + (py - fraction * dy) ** 2;
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      routeKm = a.km + fraction * (b.km - a.km);
+    }
+  }
+  return routeKm / DETAILED_ROUTE_WAYPOINTS[DETAILED_ROUTE_WAYPOINTS.length - 1].km * 100;
+}
 
 // Interpolate a point along the route given progress 0..100
 export function interpolateRoutePoint(percent: number): { lat: number; lng: number } {

@@ -5,6 +5,7 @@ import { DETOUR_NODES } from '../data/routeNodes';
 import { evaluateGPSLocation, interpolateRoutePoint } from '../utils/geo';
 import { acceptBooking, BookingState } from '../utils/bookingAcceptance';
 import { DriverLocationWatch } from '../utils/driverLocationWatch';
+import { inferRouteDirection } from '../utils/routeDirection';
 import { AUTH_DRIVER_KEY, VILLAGER_NAME_KEY, normalizeVillagerName, readDriverSession, readVillagerName, storeIdentity } from '../utils/identityStorage';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
@@ -577,18 +578,26 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   // Dynamic GPS Proximity text updater
-  const updateDriverLocation = useCallback((driverId: string, lat: number, lng: number, accuracy?: number, liveDriverId?: string) => {
+  const updateDriverLocation = useCallback((driverId: string, lat: number, lng: number, accuracy?: number, liveDriverId?: string, sampleTimestamp = Date.now()) => {
     setDrivers((prevDrivers) => {
       if (liveDriverId && authenticatedDriverIdRef.current !== liveDriverId) return prevDrivers;
       const target = prevDrivers.find((d) => d.id === driverId);
       if (!target) return prevDrivers;
 
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return prevDrivers;
+      const gpsMode: Driver['gpsMode'] = liveDriverId ? 'live' : 'simulation';
+      if (!Number.isFinite(sampleTimestamp) || sampleTimestamp <= 0 ||
+          (target.gpsMode === gpsMode && sampleTimestamp <= target.currentLocation?.timestamp)) return prevDrivers;
+      const location = { lat, lng, accuracy: typeof accuracy === 'number' && Number.isFinite(accuracy) && accuracy >= 0 ? accuracy : 10, timestamp: sampleTimestamp };
+      const movement = inferRouteDirection(location, target.gpsMode === gpsMode ? target.directionAnchor : undefined);
+
       const analysis = evaluateGPSLocation(
         lat,
         lng,
-        target.currentLocation ? 50 : 0,
+        movement.bearing,
         target.nameEn,
-        target.nameAr
+        target.nameAr,
+        target.status
       );
 
       const updated = prevDrivers.map((d) => {
@@ -596,12 +605,9 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
           return {
             ...d,
             status: analysis.status,
-            currentLocation: {
-              lat,
-              lng,
-              accuracy: accuracy || 10,
-              timestamp: Date.now()
-            },
+            currentLocation: location,
+            directionAnchor: movement.anchor,
+            gpsMode,
             detectedNodeId: analysis.detectedNode.id,
             isDetour: analysis.isDetour,
             detourNameEn: analysis.detourNameEn,
@@ -650,7 +656,8 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
             pos.coords.latitude,
             pos.coords.longitude,
             pos.coords.accuracy,
-            ownerId
+            ownerId,
+            pos.timestamp
           );
         },
         (err) => {
