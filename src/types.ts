@@ -90,6 +90,7 @@ export interface Driver {
   proximityStatusAr: string;
   // GPS fields
   currentLocation: GPSLocation;
+  directionAnchor?: GPSLocation;
   detectedNodeId: string;
   isDetour: boolean;
   detourNameEn?: string;
