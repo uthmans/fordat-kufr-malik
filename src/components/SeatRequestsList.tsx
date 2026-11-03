@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { bookingAcceptanceError } from '../utils/bookingAcceptance';
 import { useTransit } from '../context/TransitContext';
 import { SeatRequest } from '../types';
 import { PhoneDisplay } from './PhoneDisplay';
@@ -11,6 +12,7 @@ interface SeatRequestsListProps {
 export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) => {
   const { seatRequests, acceptSeatRequest, declineSeatRequest, language, currentDriver } = useTransit();
   const isAr = language === 'ar';
+  const [acceptError, setAcceptError] = useState<string | null>(null);
 
   const relevantRequests = seatRequests.filter((r) => r.driverId === driverId);
   const pendingRequests = relevantRequests.filter((r) => r.status === 'pending');
@@ -22,7 +24,7 @@ export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) 
     return isAr ? `قبل ${min} د` : `${min}m ago`;
   };
 
-  const isFull = (currentDriver?.passengers ?? 0) >= 7;
+  const isFull = !!currentDriver && currentDriver.passengers >= currentDriver.maxCapacity;
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs space-y-4">
@@ -53,6 +55,8 @@ export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) 
           </span>
         )}
       </div>
+
+      {acceptError && <p role="alert" className="text-xs font-bold text-rose-600 dark:text-rose-400">{isAr ? 'تعذر قبول الطلب. تحقق من المقاعد المتاحة وحالة الطلب.' : 'Could not accept this request. Check available seats and request status.'}</p>}
 
       {/* Pending Requests List */}
       {pendingRequests.length === 0 ? (
@@ -100,16 +104,18 @@ export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) 
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => acceptSeatRequest(req.id)}
-                  disabled={isFull}
+                  onClick={() => setAcceptError(acceptSeatRequest(req.id) ? null : req.id)}
+                  disabled={!!bookingAcceptanceError(req, currentDriver)}
                   className={`min-h-[48px] rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-sm transition-all tap-highlight ${
-                    isFull
+                    bookingAcceptanceError(req, currentDriver)
                       ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed'
                       : 'bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white ring-2 ring-emerald-500'
                   }`}
                 >
                   <Check size={18} strokeWidth={3} />
-                  <span>{isAr ? 'قبول (+ حجز)' : 'Accept (+ Add)'}</span>
+                  <span>{bookingAcceptanceError(req, currentDriver)
+                    ? (isAr ? 'لا توجد مقاعد كافية' : 'Not enough seats')
+                    : (isAr ? 'قبول (+ حجز)' : 'Accept (+ Add)')}</span>
                 </button>
 
                 <button
