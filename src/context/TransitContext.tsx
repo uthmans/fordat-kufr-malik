@@ -4,6 +4,7 @@ import { INITIAL_DRIVERS, PRAYER_SHIFT_CONFIGS } from '../data/initialDrivers';
 import { DETOUR_NODES } from '../data/routeNodes';
 import { evaluateGPSLocation, interpolateRoutePoint } from '../utils/geo';
 import { acceptBooking, BookingState } from '../utils/bookingAcceptance';
+import { DriverLocationWatch } from '../utils/driverLocationWatch';
 import { AUTH_DRIVER_KEY, VILLAGER_NAME_KEY, normalizeVillagerName, readDriverSession, readVillagerName, storeIdentity } from '../utils/identityStorage';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
@@ -121,6 +122,8 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Restore only a known roster ID, including sessions saved by older app versions.
   const [authenticatedDriverId, setAuthenticatedDriverId] = useState<string | null>(() => readDriverSession(drivers));
+  const authenticatedDriverIdRef = useRef(authenticatedDriverId);
+  authenticatedDriverIdRef.current = authenticatedDriverId;
   const [selectedDriverId, setSelectedDriverId] = useState<string>(authenticatedDriverId || drivers[0]?.id || 'driver-1');
   const [villagerName, setVillagerName] = useState(readVillagerName);
 
@@ -243,7 +246,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Real GPS state
   const [isTrackingRealGPS, setIsTrackingRealGPS] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
-  const watchIdRef = useRef<number | null>(null);
+  const gpsWatchRef = useRef<DriverLocationWatch | null>(null);
 
   // Simulation state
   const [isSimulatingGPS, setIsSimulatingGPS] = useState(false);
@@ -361,6 +364,8 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // PIN check against driver pin, default 1234, or Master admin 9999
     if (driver.pinCode === pin || pin === '1234' || pin === MASTER_ADMIN_PIN) {
+      if (authenticatedDriverIdRef.current !== driverId) stopRealGPSTracking();
+      authenticatedDriverIdRef.current = driverId;
       setAuthenticatedDriverId(driverId);
       setSelectedDriverId(driverId);
       storeIdentity(AUTH_DRIVER_KEY, driverId);
@@ -378,6 +383,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const logoutDriver = () => {
+    authenticatedDriverIdRef.current = null;
     // A shared phone must not keep updating the previous driver's GPS position.
     stopRealGPSTracking();
     setIsSimulatingGPS(false);
@@ -571,8 +577,9 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   // Dynamic GPS Proximity text updater
-  const updateDriverLocation = useCallback((driverId: string, lat: number, lng: number, accuracy?: number) => {
+  const updateDriverLocation = useCallback((driverId: string, lat: number, lng: number, accuracy?: number, liveDriverId?: string) => {
     setDrivers((prevDrivers) => {
+      if (liveDriverId && authenticatedDriverIdRef.current !== liveDriverId) return prevDrivers;
       const target = prevDrivers.find((d) => d.id === driverId);
       if (!target) return prevDrivers;
 
@@ -618,6 +625,11 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // HTML5 Geolocation Tracking
   const startRealGPSTracking = () => {
+    const driverId = authenticatedDriverIdRef.current;
+    if (!driverId || !bookingStateRef.current.drivers.some((driver) => driver.id === driverId)) {
+      setGpsError(language === 'ar' ? 'سجل دخولك كسائق لتشغيل GPS الهاتف' : 'Sign in as a driver to use phone GPS');
+      return;
+    }
     if (!navigator.geolocation) {
       setGpsError(language === 'ar' ? 'نظام GPS غير مدعوم في هذا المتصفح' : 'Geolocation is not supported');
       return;
@@ -628,43 +640,40 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setIsSimulatingGPS(false);
 
     try {
-      watchIdRef.current = navigator.geolocation.watchPosition(
-        (pos) => {
+      if (!gpsWatchRef.current) gpsWatchRef.current = new DriverLocationWatch(
+        navigator.geolocation,
+        (ownerId, pos) => {
+          if (authenticatedDriverIdRef.current !== ownerId) return;
           setGpsError(null);
           updateDriverLocation(
-            selectedDriverId,
+            ownerId,
             pos.coords.latitude,
             pos.coords.longitude,
-            pos.coords.accuracy
+            pos.coords.accuracy,
+            ownerId
           );
         },
         (err) => {
+          if (err.code === 1) setIsTrackingRealGPS(false);
           setGpsError(err.message || 'GPS Signal Lost');
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 1000,
-          timeout: 10000
         }
       );
+      gpsWatchRef.current.start(driverId);
     } catch (e: any) {
+      gpsWatchRef.current?.stop();
+      setIsTrackingRealGPS(false);
       setGpsError(e.message || 'Error initializing GPS');
     }
   };
 
   const stopRealGPSTracking = () => {
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
+    gpsWatchRef.current?.stop();
     setIsTrackingRealGPS(false);
   };
 
   useEffect(() => {
     return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-      }
+      gpsWatchRef.current?.stop();
     };
   }, []);
 
@@ -682,10 +691,10 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     if (isDetourSimulated) {
       const detour = DETOUR_NODES[0];
-      updateDriverLocation(selectedDriverId, detour.lat, detour.lng, 15);
+      updateDriverLocation(authenticatedDriverIdRef.current || selectedDriverId, detour.lat, detour.lng, 15);
     } else {
       const pt = interpolateRoutePoint(progress);
-      updateDriverLocation(selectedDriverId, pt.lat, pt.lng, 5);
+      updateDriverLocation(authenticatedDriverIdRef.current || selectedDriverId, pt.lat, pt.lng, 5);
     }
   };
 
@@ -696,10 +705,10 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     if (nextDetour) {
       const detour = DETOUR_NODES[0];
-      updateDriverLocation(selectedDriverId, detour.lat, detour.lng, 15);
+      updateDriverLocation(authenticatedDriverIdRef.current || selectedDriverId, detour.lat, detour.lng, 15);
     } else {
       const pt = interpolateRoutePoint(simulationProgress);
-      updateDriverLocation(selectedDriverId, pt.lat, pt.lng, 5);
+      updateDriverLocation(authenticatedDriverIdRef.current || selectedDriverId, pt.lat, pt.lng, 5);
     }
   };
 
@@ -725,10 +734,10 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         if (isDetourSimulated) {
           const detour = DETOUR_NODES[0];
-          updateDriverLocation(selectedDriverId, detour.lat, detour.lng, 15);
+          updateDriverLocation(authenticatedDriverIdRef.current || selectedDriverId, detour.lat, detour.lng, 15);
         } else {
           const pt = interpolateRoutePoint(next);
-          updateDriverLocation(selectedDriverId, pt.lat, pt.lng, 5);
+          updateDriverLocation(authenticatedDriverIdRef.current || selectedDriverId, pt.lat, pt.lng, 5);
         }
 
         broadcastSync('GPS_SIM_PROGRESS', { progress: next, isDetour: isDetourSimulated });
@@ -905,6 +914,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const resetAll = () => {
+    authenticatedDriverIdRef.current = null;
     saveDrivers(INITIAL_DRIVERS);
     localStorage.removeItem(REQUESTS_KEY);
     localStorage.removeItem(TRIP_LOGS_KEY);
