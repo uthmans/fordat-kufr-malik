@@ -20,3 +20,12 @@ browsers cannot execute the unbuilt React TypeScript entry point.
 
 To verify a production build locally, run `bun run build` followed by
 `bun run preview`, then open the printed URL with `/fordat-kufr-malik/`.
+
+## WhatsApp reservations
+
+Submitting a valid reservation saves one local request and opens the pre-filled
+WhatsApp draft directly from the submit tap. The prepared-message screen stays
+open with a native retry link, so a blocked popup or a return from WhatsApp does
+not require another reservation submission. Retrying that link does not create
+another saved request. The passenger still needs to send the message in WhatsApp
+and wait for the driver's confirmation; preparing a draft does not confirm seats.
