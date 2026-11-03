@@ -29,7 +29,8 @@ export const GPSSimulatorPanel: React.FC = () => {
     isDetourSimulated,
     toggleDetourSimulation,
     language,
-    currentDriver
+    currentDriver,
+    authenticatedDriverId
   } = useTransit();
 
   const isAr = language === 'ar';
@@ -37,7 +38,7 @@ export const GPSSimulatorPanel: React.FC = () => {
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
       {/* Title */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
             <Radio size={18} className={isSimulatingGPS || isTrackingRealGPS ? 'animate-pulse' : ''} />
@@ -57,8 +58,9 @@ export const GPSSimulatorPanel: React.FC = () => {
         {/* Real GPS Toggle button */}
         <button
           type="button"
+          disabled={!authenticatedDriverId}
           onClick={() => (isTrackingRealGPS ? stopRealGPSTracking() : startRealGPSTracking())}
-          className={`py-1.5 px-3 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all tap-highlight ${
+          className={`py-1.5 px-3 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all tap-highlight disabled:opacity-50 disabled:cursor-not-allowed ${
             isTrackingRealGPS
               ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
               : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
@@ -72,6 +74,12 @@ export const GPSSimulatorPanel: React.FC = () => {
           </span>
         </button>
       </div>
+
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        {authenticatedDriverId && currentDriver
+          ? (isAr ? `GPS الهاتف يحدث موقع ${currentDriver.nameAr} فقط` : `Phone GPS updates ${currentDriver.nameEn} only`)
+          : (isAr ? 'سجل دخولك كسائق لتشغيل GPS الهاتف' : 'Sign in as a driver to use phone GPS')}
+      </p>
 
       {gpsError && (
         <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
