@@ -3,6 +3,7 @@ import { Driver, DriverStatus, Language, ActiveTab, SeatRequest, TripLogEntry, A
 import { INITIAL_DRIVERS, PRAYER_SHIFT_CONFIGS } from '../data/initialDrivers';
 import { DETOUR_NODES } from '../data/routeNodes';
 import { evaluateGPSLocation, interpolateRoutePoint } from '../utils/geo';
+import { acceptBooking, BookingState } from '../utils/bookingAcceptance';
 import { AUTH_DRIVER_KEY, VILLAGER_NAME_KEY, normalizeVillagerName, readDriverSession, readVillagerName, storeIdentity } from '../utils/identityStorage';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
@@ -77,7 +78,7 @@ interface TransitContextType {
     seatCount: number,
     phone?: string
   ) => void;
-  acceptSeatRequest: (requestId: string) => void;
+  acceptSeatRequest: (requestId: string) => boolean;
   declineSeatRequest: (requestId: string) => void;
 
   // Driver Trip Log & Archive
@@ -235,6 +236,10 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     ];
   });
 
+  // Read the latest accepted changes even before React renders a second tap.
+  const bookingStateRef = useRef<BookingState>({ drivers, requests: seatRequests, logs: tripLogs });
+  bookingStateRef.current = { drivers, requests: seatRequests, logs: tripLogs };
+
   // Real GPS state
   const [isTrackingRealGPS, setIsTrackingRealGPS] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
@@ -258,18 +263,21 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const saveDrivers = useCallback((newDrivers: Driver[]) => {
+    bookingStateRef.current.drivers = newDrivers;
     setDrivers(newDrivers);
     try { localStorage.setItem(DRIVERS_KEY, JSON.stringify(newDrivers)); } catch {}
     broadcastSync('UPDATE_DRIVERS', newDrivers);
   }, []);
 
   const saveRequests = useCallback((newRequests: SeatRequest[]) => {
+    bookingStateRef.current.requests = newRequests;
     setSeatRequests(newRequests);
     try { localStorage.setItem(REQUESTS_KEY, JSON.stringify(newRequests)); } catch {}
     broadcastSync('UPDATE_REQUESTS', newRequests);
   }, []);
 
   const saveTripLogs = useCallback((newLogs: TripLogEntry[]) => {
+    bookingStateRef.current.logs = newLogs;
     setTripLogs(newLogs);
     try { localStorage.setItem(TRIP_LOGS_KEY, JSON.stringify(newLogs)); } catch {}
     broadcastSync('UPDATE_TRIP_LOGS', newLogs);
@@ -289,10 +297,13 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     channel.onmessage = (event) => {
       const { type, payload } = event.data || {};
       if (type === 'UPDATE_DRIVERS' && Array.isArray(payload)) {
+        bookingStateRef.current.drivers = payload;
         setDrivers(payload);
       } else if (type === 'UPDATE_REQUESTS' && Array.isArray(payload)) {
+        bookingStateRef.current.requests = payload;
         setSeatRequests(payload);
       } else if (type === 'UPDATE_TRIP_LOGS' && Array.isArray(payload)) {
+        bookingStateRef.current.logs = payload;
         setTripLogs(payload);
       } else if (type === 'UPDATE_TRIP_HISTORY' && Array.isArray(payload)) {
         setTripHistory(payload);
@@ -801,35 +812,18 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const acceptSeatRequest = (requestId: string) => {
-    const req = seatRequests.find((r) => r.id === requestId);
-    if (!req) return;
+    const next = acceptBooking(bookingStateRef.current, requestId, authenticatedDriverId, Date.now());
+    if (!next) return false;
+    bookingStateRef.current = next;
+    saveDrivers(next.drivers);
+    saveTripLogs(next.logs);
+    saveRequests(next.requests);
 
     if (typeof window !== 'undefined' && navigator.vibrate) {
       try { navigator.vibrate([40, 60, 40]); } catch {}
     }
 
-    const driver = drivers.find((d) => d.id === req.driverId);
-    if (driver && driver.passengers + req.seatCount <= driver.maxCapacity) {
-      updateDriverPassengers(driver.id, driver.passengers + req.seatCount);
-    }
-
-    // Add to Trip Log for driver
-    const newTripEntry: TripLogEntry = {
-      id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 3)}`,
-      driverId: req.driverId,
-      passengerName: req.passengerName,
-      seatCount: req.seatCount,
-      phone: req.phone,
-      status: 'confirmed',
-      confirmedAt: Date.now()
-    };
-
-    saveTripLogs([newTripEntry, ...tripLogs]);
-
-    const updated = seatRequests.map((r) =>
-      r.id === requestId ? { ...r, status: 'accepted' as const } : r
-    );
-    saveRequests(updated);
+    return true;
   };
 
   const declineSeatRequest = (requestId: string) => {
