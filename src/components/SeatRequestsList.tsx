@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { bookingAcceptanceError } from '../utils/bookingAcceptance';
+import { isDemoRequest } from '../utils/dataFreshness';
 import { useTransit } from '../context/TransitContext';
 import { SeatRequest } from '../types';
 import { PhoneDisplay } from './PhoneDisplay';
@@ -36,7 +37,7 @@ export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) 
           </div>
           <div>
             <h3 className="font-black text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
-              <span>{isAr ? 'الطلبات الواردة' : 'Incoming Booking Requests'}</span>
+              <span>{isAr ? 'طلبات الحجز على هذا الجهاز' : 'Booking requests on this device'}</span>
               {pendingRequests.length > 0 && (
                 <span className="px-2 py-0.2 rounded-full bg-rose-600 text-white text-[11px] font-black">
                   {pendingRequests.length} {isAr ? 'جديد' : 'new'}
@@ -63,8 +64,8 @@ export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) 
         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-800 text-center">
           <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
             {isAr
-              ? 'لا توجد طلبات معلقة — أي حجز جديد عبر واتساب أو التطبيق سيظهر هنا'
-              : 'No pending requests — new bookings will appear here instantly'}
+              ? 'لا توجد طلبات معلقة محفوظة على هذا الجهاز'
+              : 'No pending requests saved on this device'}
           </p>
         </div>
       ) : (
@@ -79,6 +80,7 @@ export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) 
                 <div className="min-w-0">
                   <h4 className="font-black text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
                     <span>{req.passengerName}</span>
+                    {isDemoRequest(req) && <span className="text-[10px] text-amber-700 dark:text-amber-400">{isAr ? 'طلب تجريبي' : 'Demo request'}</span>}
                   </h4>
 
                   <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">

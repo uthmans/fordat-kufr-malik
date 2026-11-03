@@ -29,6 +29,7 @@ export interface RouteNode {
 }
 
 export interface SeatRequest {
+  isDemo?: boolean;
   id: string;
   driverId: string;
   passengerName: string;
@@ -39,6 +40,7 @@ export interface SeatRequest {
 }
 
 export interface TripLogEntry {
+  isDemo?: boolean;
   id: string;
   driverId: string;
   passengerName: string;
@@ -49,6 +51,7 @@ export interface TripLogEntry {
 }
 
 export interface ArchivedTrip {
+  isDemo?: boolean;
   id: string;
   driverId: string;
   timestamp: number;
@@ -79,6 +82,7 @@ export interface Driver {
   lastTripLabelAr?: string;
   status: DriverStatus;
   passengers: number; // 0 to 7
+  seatCountUpdatedAt?: number;
   maxCapacity: number; // 7
   lastUpdated: string; // ISO string
   departureNoteEn: string;

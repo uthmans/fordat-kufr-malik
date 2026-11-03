@@ -7,6 +7,7 @@ import { RouteVisualizer } from './RouteVisualizer';
 import { PWAInstallBanner } from './PWAInstallBanner';
 import { buildVillagerReservationUrl } from '../utils/whatsapp';
 import { normalizeVillagerName } from '../utils/identityStorage';
+import { hasRecentGPS, hasConfirmedSeats, isDemoDriver } from '../utils/dataFreshness';
 import {
   MessageSquare,
   MapPin,
@@ -25,7 +26,7 @@ import {
 } from 'lucide-react';
 
 export const VillagerView: React.FC = () => {
-  const { drivers, language, setSelectedDriverId, requestSeat, villagerName } = useTransit();
+  const { drivers, language, setSelectedDriverId, requestSeat, villagerName, showDemoData, dataNow } = useTransit();
   const [filterDirection, setFilterDirection] = useState<TripDirection>('all');
   const [requestingForDriver, setRequestingForDriver] = useState<Driver | null>(null);
 
@@ -40,8 +41,11 @@ export const VillagerView: React.FC = () => {
   const isAr = language === 'ar';
 
   // Only ON DUTY drivers appear in the active villager list!
-  const onDutyDrivers = drivers.filter((driver) => driver.isOnDuty);
-  const offDutyDrivers = drivers.filter((driver) => !driver.isOnDuty);
+  const onDutyDrivers = drivers.filter((driver) => driver.isOnDuty && (showDemoData || !isDemoDriver(driver)));
+  const offDutyDrivers = drivers.filter((driver) => !driver.isOnDuty && (showDemoData || !isDemoDriver(driver)));
+  const mapDrivers = onDutyDrivers.filter((driver) => hasRecentGPS(driver, dataNow) || (showDemoData && isDemoDriver(driver)));
+  const confirmedDrivers = onDutyDrivers.filter((driver) => hasConfirmedSeats(driver, dataNow) || (showDemoData && isDemoDriver(driver)));
+  const contactDrivers = showDemoData ? [] : drivers.filter((driver) => !onDutyDrivers.some((visible) => visible.id === driver.id));
 
   const filteredDrivers = onDutyDrivers.filter((driver) => {
     if (filterDirection === 'all') return true;
@@ -55,7 +59,7 @@ export const VillagerView: React.FC = () => {
     return true;
   });
 
-  const totalOpenSeats = onDutyDrivers.reduce(
+  const totalOpenSeats = confirmedDrivers.reduce(
     (acc, d) => acc + Math.max(0, d.maxCapacity - d.passengers),
     0
   );
@@ -109,9 +113,11 @@ export const VillagerView: React.FC = () => {
       <PWAInstallBanner />
 
       {/* Corridor Map with live GPS positions of on-duty drivers */}
-      <RouteVisualizer
-        drivers={onDutyDrivers}
+      {mapDrivers.length > 0 ? <RouteVisualizer
+        drivers={mapDrivers}
         language={language}
+        now={dataNow}
+        demo={showDemoData}
         onSelectDriver={(id) => {
           setSelectedDriverId(id);
           const el = document.getElementById(`driver-card-${id}`);
@@ -121,11 +127,13 @@ export const VillagerView: React.FC = () => {
             setTimeout(() => el.classList.remove('ring-2', 'ring-emerald-500'), 2000);
           }
         }}
-      />
+      /> : <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-500">
+        {isAr ? 'لا توجد مواقع GPS حديثة على هذا الجهاز.' : 'No recent GPS locations on this device.'}
+      </div>}
 
       {/* Direction Filters */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex flex-wrap items-center gap-1 p-1 max-w-full bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+        {onDutyDrivers.length > 0 && <div className="flex flex-wrap items-center gap-1 p-1 max-w-full bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
           <button
             onClick={() => setFilterDirection('all')}
             className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
@@ -160,9 +168,11 @@ export const VillagerView: React.FC = () => {
           </button>
         </div>
 
+        }
         {/* Total open seats with pluralization */}
         <div className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
-          {totalOpenSeats > 0 ? (
+          <span className="block font-sans text-slate-500">{showDemoData ? (isAr ? 'معاينة المقاعد (تشمل بيانات تجريبية)' : 'Seat preview (includes demo data)') : (isAr ? 'مقاعد مؤكدة حديثاً على هذا الجهاز' : 'Recently confirmed seats on this device')}</span>
+          {confirmedDrivers.length === 0 ? (isAr ? 'لا يوجد تحديث مؤكد للمقاعد' : 'No confirmed seat updates') : totalOpenSeats > 0 ? (
             isAr ? (
               totalOpenSeats === 1
                 ? 'مقعد شاغر واحد متاح'
@@ -179,26 +189,30 @@ export const VillagerView: React.FC = () => {
       </div>
 
       {/* ULTRA-MINIMALIST DRIVER CARDS */}
-      {filteredDrivers.length === 0 ? (
+      {filteredDrivers.length === 0 ? (contactDrivers.length > 0 ? null :
         <div className="p-8 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl space-y-2">
           <Coffee size={28} className="mx-auto text-slate-400" />
           <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200">
-            {isAr ? 'لا يوجد سرافيس متاحة حالياً على هذا الخط' : 'No drivers currently on duty'}
+            {isAr ? 'لا توجد تحديثات للسائقين في هذا العرض' : 'No driver updates in this view'}
           </h3>
           <p className="text-xs text-slate-500">
-            {isAr ? 'السائقون خارج أوقات العمل أو غير متاحين اليوم' : 'Drivers are currently off duty.'}
+            {isAr ? 'تواصل مع السائق للتأكد من توفره.' : 'Contact a driver to confirm availability.'}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           {filteredDrivers.map((driver) => {
+            const demo = isDemoDriver(driver);
+            const seatsKnown = hasConfirmedSeats(driver, dataNow) || (showDemoData && demo);
             const vacant = driver.maxCapacity - driver.passengers;
             const isFull = vacant === 0;
             const displayName = isAr ? driver.nameAr : driver.nameEn;
 
             // Signal age detection (> 2 minutes indicates weak valley coverage)
-            const isSignalOld = driver.currentLocation?.timestamp && (Date.now() - driver.currentLocation.timestamp > 2 * 60 * 1000);
-            const minsAgo = isSignalOld ? Math.max(2, Math.round((Date.now() - driver.currentLocation.timestamp) / 60000)) : 0;
+            const isSignalOld = !demo && !hasRecentGPS(driver, dataNow);
+            const timestamp = driver.currentLocation?.timestamp;
+            const validTime = Number.isFinite(timestamp) && timestamp > 0 && timestamp <= dataNow;
+            const minsAgo = validTime ? Math.floor((dataNow - timestamp) / 60000) : 0;
 
             const shiftKey = driver.prayerShift || (driver.isLateShift ? 'after_maghrib' : 'regular_day');
             const shiftConf = PRAYER_SHIFT_CONFIGS[shiftKey];
@@ -209,6 +223,7 @@ export const VillagerView: React.FC = () => {
                 id={`driver-card-${driver.id}`}
                 className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs hover:shadow-md transition-all space-y-3.5"
               >
+                <p className="text-xs font-bold text-amber-700 dark:text-amber-400">{demo ? (isAr ? 'بيانات تجريبية' : 'Demo data') : isSignalOld ? (isAr ? 'موقع محفوظ — تحديث قديم' : 'Saved location — stale update') : (isAr ? 'GPS حديث من هذا الهاتف' : 'Recent GPS from this phone')}</p>
                 {/* Quick Departure Announcement Banner if Driver Set Countdown */}
                 {driver.departureCountdown && (
                   <div className={`p-2.5 rounded-2xl flex items-center justify-between text-xs font-black gap-2 ${DEPARTURE_COUNTDOWN_CONFIGS[driver.departureCountdown].pillBg}`}>
@@ -257,7 +272,7 @@ export const VillagerView: React.FC = () => {
                     </div>
                     <div className="min-w-0">
                       <span className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">
-                        {isAr ? 'الموقع اللحظي (GPS مباشر):' : 'Live Proximity Status:'}
+                        {demo ? (isAr ? 'موقع تجريبي:' : 'Demo location:') : (isAr ? 'آخر موقع مُبلغ عنه:' : 'Last reported location:')}
                       </span>
                       <span className="font-black text-base text-slate-900 dark:text-slate-100 truncate block mt-0.5">
                         {isAr ? driver.proximityStatusAr : driver.proximityStatusEn}
@@ -269,12 +284,13 @@ export const VillagerView: React.FC = () => {
                   {isSignalOld && (
                     <span className="px-2 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 text-[10px] font-bold flex items-center gap-1 shrink-0 border border-amber-200 dark:border-amber-800/50">
                       <WifiOff size={11} className="shrink-0" />
-                      <span>{isAr ? `آخر موقع قبل ${minsAgo} دقيقة` : `Last seen ${minsAgo}m ago`}</span>
+                      <span>{validTime ? (isAr ? `آخر موقع قبل ${minsAgo} دقيقة` : `Last seen ${minsAgo}m ago`) : (isAr ? 'وقت التحديث غير معروف' : 'Update time unknown')}</span>
                     </span>
                   )}
                 </div>
 
                 {/* 3. Available Seats Counter with correct pluralization */}
+                {!demo && validTime && <p className="text-[11px] text-slate-500">{isAr ? 'تحديث الموقع: ' : 'Location updated: '}{new Date(timestamp).toLocaleTimeString(isAr ? 'ar' : 'en', { hour: '2-digit', minute: '2-digit' })}</p>}
                 <div className="pt-1 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Users size={16} className="text-slate-400" />
@@ -283,7 +299,7 @@ export const VillagerView: React.FC = () => {
                     </span>
                   </div>
 
-                  {isFull ? (
+                  {!seatsKnown ? <span className="px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 font-bold text-xs">{isAr ? 'التوفر غير مؤكد' : 'Availability unconfirmed'}</span> : isFull ? (
                     <span className="px-3 py-1 rounded-xl bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-black text-xs">
                       {isAr ? 'مكتمل' : 'FULL'}
                     </span>
@@ -297,9 +313,9 @@ export const VillagerView: React.FC = () => {
                 </div>
 
                 {/* Visual Seat Glyphs */}
-                <div className="flex justify-center">
+                {seatsKnown && <div className="flex justify-center">
                   <SeatVisualizer passengers={driver.passengers} maxCapacity={driver.maxCapacity} size="md" />
-                </div>
+                </div>}
 
                 {/* 4. One Clear Action Button: "تواصل عبر واتساب / WhatsApp" */}
                 <div className="pt-1">
@@ -318,6 +334,14 @@ export const VillagerView: React.FC = () => {
         </div>
       )}
 
+
+      {contactDrivers.length > 0 && <section className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+        <h2 className="text-sm font-black text-slate-900 dark:text-slate-100">{isAr ? 'التواصل مع السائقين — التوفر غير مؤكد' : 'Driver contacts — availability unconfirmed'}</h2>
+        {contactDrivers.map((driver) => <div key={driver.id} className="flex items-center justify-between gap-2 py-2 border-t border-slate-100 dark:border-slate-800">
+          <span className="min-w-0 text-sm font-bold text-slate-800 dark:text-slate-200">{isAr ? driver.nameAr : driver.nameEn}</span>
+          <button type="button" onClick={() => handleOpenWhatsAppModal(driver)} className="min-h-10 shrink-0 px-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold">{isAr ? 'تواصل عبر واتساب' : 'WhatsApp'}</button>
+        </div>)}
+      </section>}
 
       {/* Quiet Off-Duty Drivers Notice if any exist */}
       {offDutyDrivers.length > 0 && (
@@ -367,11 +391,12 @@ export const VillagerView: React.FC = () => {
                   {isAr ? 'جاري فتح محادثة واتساب...' : 'Opening WhatsApp...'}
                 </h4>
                 <p className="text-xs text-slate-500">
-                  {isAr ? 'تم تجهيز رسالتك وإرسال الإشعار للسائق' : 'Your reservation text is ready.'}
+                  {isAr ? 'تم تجهيز الرسالة. أرسلها في واتساب ليصل طلبك للسائق.' : 'Your message is ready. Send it in WhatsApp to reach the driver.'}
                 </p>
               </div>
             ) : (
               <form onSubmit={handleLaunchWhatsApp} className="space-y-4 py-4">
+                <p className="text-xs text-amber-700 dark:text-amber-300">{isAr ? 'التوفر يحتاج تأكيد السائق عبر واتساب. هذا طلب حجز وليس تأكيداً.' : 'The driver must confirm availability through WhatsApp. This is a request, not a confirmed booking.'}</p>
                 {/* 1. Name */}
                 <div>
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-1">

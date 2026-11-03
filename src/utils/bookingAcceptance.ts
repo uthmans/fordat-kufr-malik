@@ -1,4 +1,5 @@
 import type { Driver, SeatRequest, TripLogEntry } from '../types';
+import { isDemoRequest, hasRecentSeatCount } from './dataFreshness';
 
 export function bookingAcceptanceError(request: SeatRequest | undefined, driver: Driver | undefined) {
   if (!request || request.status !== 'pending') return 'not_pending';
@@ -27,10 +28,11 @@ export function acceptBooking(state: BookingState, requestId: string, driverId: 
   return {
     drivers: state.drivers.map((d) => d.id === driver.id ? {
       ...d, passengers: d.passengers + request.seatCount, lastActiveTime: now,
+      seatCountUpdatedAt: !isDemoRequest(request) && hasRecentSeatCount(driver, now) ? now : undefined,
       autoPausedForInactivity: false, lastUpdated: new Date(now).toISOString()
     } : d),
     requests: state.requests.map((r) => r.id === request.id ? { ...r, status: 'accepted' } : r),
     logs: [{ id: logId, driverId: driver.id, passengerName: request.passengerName,
-      seatCount: request.seatCount, phone: request.phone, status: 'confirmed', confirmedAt: now }, ...state.logs]
+      seatCount: request.seatCount, phone: request.phone, status: 'confirmed', confirmedAt: now, isDemo: isDemoRequest(request) }, ...state.logs]
   };
 }

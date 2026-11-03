@@ -3,11 +3,14 @@ import { ROUTE_NODES } from '../data/routeNodes';
 import { Driver, Language } from '../types';
 import { Navigation, AlertTriangle, MapPin } from 'lucide-react';
 import { layoutRoutePins } from '../utils/routePinLayout';
+import { hasConfirmedSeats, isDemoDriver } from '../utils/dataFreshness';
 
 interface RouteVisualizerProps {
   drivers: Driver[];
   language: Language;
   onSelectDriver?: (driverId: string) => void;
+  now?: number;
+  demo?: boolean;
 }
 
 const formatDriverPinName = (fullName: string, isArabic: boolean): string => {
@@ -30,7 +33,7 @@ const pinColor = (driver: Driver) => driver.isDetour ? 'bg-orange-600'
   : driver.status === 'to_ramallah' ? 'bg-blue-600'
   : driver.status === 'in_ramallah' ? 'bg-amber-600' : 'bg-purple-600';
 
-export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, language, onSelectDriver }) => {
+export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, language, onSelectDriver, now = Date.now(), demo = false }) => {
   const isAr = language === 'ar';
   const trackRef = useRef<HTMLDivElement>(null);
   const [trackWidth, setTrackWidth] = useState(0);
@@ -54,7 +57,7 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, langu
         <div className="flex items-center gap-2 min-w-0">
           <Navigation className="w-4 h-4 text-amber-500 shrink-0" />
           <h2 className="text-sm font-black text-slate-900 dark:text-slate-100">
-            {isAr ? 'مسار الخط الحي (GPS)' : 'Live Corridor Progression'}
+            {demo ? (isAr ? 'معاينة المسار التجريبية' : 'Demo route preview') : (isAr ? 'تحديثات المسار على هذا الجهاز' : 'Route updates on this device')}
           </h2>
         </div>
         <span className="text-xs text-slate-500">
@@ -107,7 +110,7 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, langu
           {trackWidth > 0 && layout.pins.map((pin) => {
             const driver = driverById.get(pin.id)!;
             const vacant = Math.max(0, driver.maxCapacity - driver.passengers);
-            const vacantText = vacant === 0 ? (isAr ? 'مكتمل' : 'FULL')
+            const vacantText = !(hasConfirmedSeats(driver, now) || (demo && isDemoDriver(driver))) ? (isAr ? 'غير مؤكد' : 'Unconfirmed') : vacant === 0 ? (isAr ? 'مكتمل' : 'FULL')
               : isAr ? (vacant === 1 ? 'مقعد واحد' : vacant === 2 ? 'مقعدان' : vacant + ' مقاعد')
               : vacant === 1 ? '1 seat' : vacant + ' seats';
             const fullName = isAr ? driver.nameAr : driver.nameEn;
@@ -133,7 +136,7 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, langu
 
       <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-          {isAr ? 'الموقع اللحظي للسائقين (تحديث GPS مباشر):' : 'Live Driver Proximity Updates:'}
+          {demo ? (isAr ? 'مواقع تجريبية للتوضيح:' : 'Example locations for preview:') : (isAr ? 'آخر مواقع مُبلغ عنها على هذا الجهاز:' : 'Latest locations reported on this device:')}
         </span>
         <div className="flex flex-col gap-1.5">
           {drivers.map((driver) => (
@@ -144,7 +147,9 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, langu
                 <span className="font-extrabold text-slate-900 dark:text-slate-100 break-words">{isAr ? driver.proximityStatusAr : driver.proximityStatusEn}</span>
               </span>
               <span className="text-[11px] font-bold text-slate-500 shrink-0" dir="auto">
-                {driver.passengers}/{driver.maxCapacity || 7} {isAr ? 'ركاب' : driver.passengers === 1 ? 'passenger' : 'passengers'}
+                {hasConfirmedSeats(driver, now) || (demo && isDemoDriver(driver))
+                  ? `${driver.passengers}/${driver.maxCapacity || 7} ${isAr ? 'ركاب' : 'passengers'}`
+                  : (isAr ? 'المقاعد غير مؤكدة' : 'Seats unconfirmed')}
               </span>
             </button>
           ))}

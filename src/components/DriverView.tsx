@@ -7,6 +7,7 @@ import { SeatRequestsList } from './SeatRequestsList';
 import { TripLogList } from './TripLogList';
 import { DriverLoginView } from './DriverLoginView';
 import { DriverProfileModal } from './DriverProfileModal';
+import { hasRecentSeatCount, hasRecentGPS } from '../utils/dataFreshness';
 import {
   Plus,
   Minus,
@@ -41,7 +42,8 @@ export const DriverView: React.FC = () => {
     updateDriverPassengers,
     isTrackingRealGPS,
     isSimulatingGPS,
-    language
+    language,
+    dataNow
   } = useTransit();
 
   const isAr = language === 'ar';
@@ -106,7 +108,7 @@ export const DriverView: React.FC = () => {
             </h2>
             <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold">
               <span className={`w-2 h-2 rounded-full ${driver.isOnDuty ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-              <span>{driver.isOnDuty ? (isAr ? 'متصل على الخط' : 'Online on Line') : (isAr ? 'غير متاح حالياً' : 'Offline')}</span>
+              <span>{driver.isOnDuty ? (isAr ? 'متاح على هذا الجهاز' : 'On duty on this device') : (isAr ? 'غير متاح حالياً' : 'Off duty')}</span>
             </div>
           </div>
         </div>
@@ -293,7 +295,7 @@ export const DriverView: React.FC = () => {
               }`}
             />
             <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              {isAr ? 'الموقع اللحظي عبر GPS' : 'Live GPS Proximity Status'}
+              {isAr ? 'آخر موقع على هذا الجهاز' : 'Last location on this device'}
             </span>
           </div>
 
@@ -321,8 +323,11 @@ export const DriverView: React.FC = () => {
               {isAr ? driver.proximityStatusAr : driver.proximityStatusEn}
             </h2>
             <div className="flex items-center gap-2 text-xs text-slate-500 font-mono mt-0.5">
-              <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                {isTrackingRealGPS ? (isAr ? 'GPS حقيقي من الهاتف' : 'Phone GPS Active') : (isAr ? 'تتبع آلي مباشر' : 'Auto-Tracked')}
+              <span className="text-amber-700 dark:text-amber-400 font-bold">
+                {driver.gpsMode !== 'live' ? (isAr ? 'موقع تجريبي' : 'Demo location')
+                  : !hasRecentGPS(driver, dataNow) ? (isAr ? 'موقع محفوظ — تحديث قديم' : 'Saved location — stale update')
+                  : isTrackingRealGPS ? (isAr ? 'GPS هذا الهاتف نشط' : 'This phone GPS is active')
+                  : (isAr ? 'موقع محفوظ — التتبع متوقف' : 'Saved location — tracking stopped')}
               </span>
             </div>
           </div>
@@ -331,6 +336,12 @@ export const DriverView: React.FC = () => {
 
       {/* 4. RESPONSIVE PASSENGER CAPACITY COUNTER */}
       <div className="bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-3xl p-4 sm:p-5 shadow-sm space-y-4">
+        {!hasRecentSeatCount(driver, dataNow) && <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-900 dark:text-amber-200 space-y-2">
+          <p>{isAr ? 'أكد عدد الركاب الموجودين في سيارتك. العدد المحفوظ غير مؤكد حديثاً.' : 'Confirm the passengers in your vehicle. The saved count has not been confirmed recently.'}</p>
+          <button type="button" onClick={() => updateDriverPassengers(driver.id, driver.passengers)} className="min-h-10 px-3 rounded-xl bg-amber-500 text-slate-950 font-bold">
+            {isAr ? 'تأكيد العدد الحالي' : 'Confirm current count'}
+          </button>
+        </div>}
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5 text-amber-500 shrink-0" />
@@ -349,7 +360,7 @@ export const DriverView: React.FC = () => {
             }`}
           >
             {isFull
-              ? isAr ? 'مكتمل (7/7)' : 'FULL (7/7)'
+              ? isAr ? `مكتمل (${driver.passengers}/${driver.maxCapacity})` : `FULL (${driver.passengers}/${driver.maxCapacity})`
               : isAr
               ? (vacantSeats === 1 ? 'متبقي مقعد واحد' : vacantSeats === 2 ? 'متبقي مقعدان' : `متبقي ${vacantSeats} مقاعد`)
               : (vacantSeats === 1 ? '1 SEAT VACANT' : `${vacantSeats} SEATS VACANT`)}
