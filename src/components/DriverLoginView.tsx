@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useTransit } from '../context/TransitContext';
 import { PhoneDisplay } from './PhoneDisplay';
 import { AdminPortal } from './AdminPortal';
-import { KeyRound, AlertCircle, ShieldCheck, UserCheck, Shield } from 'lucide-react';
+import { KeyRound, AlertCircle, Shield } from 'lucide-react';
+import { isValidDriverPin } from '../utils/driverPin';
 
 export const DriverLoginView: React.FC = () => {
   const { drivers, loginDriver, language } = useTransit();
@@ -15,18 +16,19 @@ export const DriverLoginView: React.FC = () => {
 
   const selectedDriver = drivers.find((d) => d.id === selectedDriverId) || drivers[0];
   const driverDisplayName = isAr ? selectedDriver.nameAr : selectedDriver.nameEn;
+  const pinLength = isValidDriverPin(selectedDriver.pinCode) ? selectedDriver.pinCode.length : 4;
 
   const handlePinDigit = (digit: string) => {
-    if (pin.length < 4) {
+    if (pin.length < pinLength) {
       const nextPin = pin + digit;
       setPin(nextPin);
       setError(null);
-      if (nextPin.length === 4) {
+      if (nextPin.length === pinLength) {
         // Auto submit
         const success = loginDriver(selectedDriverId, nextPin);
         if (!success) {
           setError(isAr ? 'رمز الدخول غير صحيح' : 'Incorrect PIN code');
-          setTimeout(() => setPin(''), 600);
+          setPin('');
         }
       }
     }
@@ -35,11 +37,6 @@ export const DriverLoginView: React.FC = () => {
   const handleBackspace = () => {
     setPin((prev) => prev.slice(0, -1));
     setError(null);
-  };
-
-  const handleQuickLogin = (driverId: string, driverPin: string) => {
-    setSelectedDriverId(driverId);
-    loginDriver(driverId, driverPin);
   };
 
   if (showAdminPortal) {
@@ -59,7 +56,7 @@ export const DriverLoginView: React.FC = () => {
         <p className="text-xs text-slate-500 max-w-xs mx-auto">
           {isAr
             ? 'اختر اسمك من قائمة سائقي كفر مالك وأدخل رمز PIN السريع'
-            : 'Select your driver profile and enter your 4-digit PIN'}
+            : 'Select your driver profile and enter your PIN'}
         </p>
         <p className="text-[11px] text-slate-400">{isAr ? 'سنتذكر دخولك على هذا الجهاز حتى تختار تغيير السائق' : 'Stay signed in on this device until you choose Switch Driver'}</p>
       </div>
@@ -111,10 +108,10 @@ export const DriverLoginView: React.FC = () => {
           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
             {isAr
               ? `رمز الدخول لـ (${driverDisplayName}):`
-              : `4-Digit PIN for (${driverDisplayName}):`}
+              : `${pinLength}-Digit PIN for (${driverDisplayName}):`}
           </span>
           <div className="flex justify-center gap-3 py-2">
-            {[0, 1, 2, 3].map((idx) => (
+            {Array.from({ length: pinLength }, (_, idx) => idx).map((idx) => (
               <div
                 key={idx}
                 className={`w-4 h-4 rounded-full border-2 transition-all ${
@@ -134,7 +131,7 @@ export const DriverLoginView: React.FC = () => {
         </div>
 
         {/* Tactile Numeric Keypad */}
-        <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
+        <div dir="ltr" className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
             <button
               key={digit}
@@ -168,23 +165,10 @@ export const DriverLoginView: React.FC = () => {
           </button>
         </div>
 
-        {/* 1-Tap Quick Access Helper */}
+        {/* Profile recovery remains available through the admin portal. */}
         <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-center space-y-2">
-          <button
-            type="button"
-            onClick={() => handleQuickLogin(selectedDriver.id, selectedDriver.pinCode)}
-            className="w-full py-2.5 px-4 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-colors tap-highlight"
-          >
-            <ShieldCheck size={15} />
-            <span>
-              {isAr
-                ? `⚡ دخول مباشر كـ (${driverDisplayName})`
-                : `⚡ Quick Access as (${driverDisplayName})`}
-            </span>
-          </button>
-
           <div className="flex items-center justify-between text-[11px] text-slate-400 px-1 pt-1">
-            <span>{isAr ? 'الرمز الافتراضي: 1234' : 'Default PIN: 1234'}</span>
+            <span>{isAr ? 'نسيت الرمز؟ راجع المسؤول.' : 'Forgot your PIN? Ask the administrator.'}</span>
             {/* Admin Portal Gateway */}
             <button
               type="button"

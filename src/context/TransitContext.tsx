@@ -9,6 +9,7 @@ import { inferRouteDirection } from '../utils/routeDirection';
 import { pauseInactiveDrivers, recordDutyMovement } from '../utils/dutyActivity';
 import { isDemoRequest, isDemoLog, isDemoArchive } from '../utils/dataFreshness';
 import { AUTH_DRIVER_KEY, VILLAGER_NAME_KEY, normalizeVillagerName, readDriverSession, readVillagerName, storeIdentity } from '../utils/identityStorage';
+import { isValidDriverPin, matchesDriverPin } from '../utils/driverPin';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
 const REQUESTS_KEY = 'kufr_malik_transit_requests_v6';
@@ -339,8 +340,8 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const driver = drivers.find((d) => d.id === driverId);
     if (!driver) return false;
 
-    // PIN check against driver pin, default 1234, or Master admin 9999
-    if (driver.pinCode === pin || pin === '1234' || pin === MASTER_ADMIN_PIN) {
+    // Only the selected driver's assigned PIN can open this local profile.
+    if (matchesDriverPin(driver, pin)) {
       if (authenticatedDriverIdRef.current !== driverId) stopRealGPSTracking();
       authenticatedDriverIdRef.current = driverId;
       setAuthenticatedDriverId(driverId);
@@ -531,6 +532,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Driver Profile Updates (by driver or admin)
   const updateDriverProfile = (driverId: string, updates: Partial<Driver>) => {
+    if (updates.pinCode !== undefined && !isValidDriverPin(updates.pinCode)) return;
     const updated = drivers.map((d) => {
       if (d.id === driverId) {
         return {

@@ -39,3 +39,16 @@ Choose **Update now** after finishing your work, or **Later** to dismiss the not
 for that session. **Settings & GPS → App updates** also provides a manual check
 and keeps a deferred update available. Updating does not clear saved identities
 or other local app data.
+
+## Local driver PINs
+
+Driver login requires the selected profile's exact assigned PIN (4–6 digits,
+including leading zeroes). There is no default or master-PIN override and no
+PIN-free Quick Access button. Existing remembered sessions and Switch Driver
+continue to work. Profile and admin edits reject empty or malformed PINs instead
+of silently resetting them to a default.
+
+This is a browser-only prototype: PINs and remembered IDs remain in client-side
+data, and the admin portal uses a public demo PIN. These controls are a local
+profile gate, not secure authentication or authorization. Shared production
+accounts need server-side identity, permission checks, and session management.

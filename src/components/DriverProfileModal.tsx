@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTransit } from '../context/TransitContext';
 import { Driver } from '../types';
 import { PhoneDisplay } from './PhoneDisplay';
+import { isValidDriverPin } from '../utils/driverPin';
 import { User, KeyRound, Phone, Archive, X, Check, Clock, Calendar, Users } from 'lucide-react';
 
 interface DriverProfileModalProps {
@@ -25,13 +26,13 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nameAr.trim() || !nameEn.trim()) return;
+    if (!nameAr.trim() || !nameEn.trim() || !isValidDriverPin(pinCode)) return;
 
     updateDriverProfile(driver.id, {
       nameAr: nameAr.trim(),
       nameEn: nameEn.trim(),
       phone: phone.trim(),
-      pinCode: pinCode.trim() || '1234'
+      pinCode
     });
 
     setSavedSuccess(true);
@@ -171,16 +172,22 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
 
               {/* 4-Digit PIN */}
               <div>
-                <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">
-                  {isAr ? 'رمز الدخول السري (4 أرقام)' : '4-Digit Login PIN'}
+                <label htmlFor="driver-profile-pin" className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">
+                  {isAr ? 'رمز الدخول السري (4 إلى 6 أرقام)' : 'Login PIN (4–6 digits)'}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                     <KeyRound size={15} />
                   </div>
                   <input
+                    id="driver-profile-pin"
                     type="password"
                     maxLength={6}
+                    minLength={4}
+                    pattern="[0-9]{4,6}"
+                    inputMode="numeric"
+                    required
+                    autoComplete="new-password"
                     value={pinCode}
                     onChange={(e) => setPinCode(e.target.value)}
                     dir="ltr"
@@ -188,7 +195,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
                   />
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  {isAr ? 'الرمز الافتراضي لجميع السائقين هو 1234' : 'Default driver PIN is 1234'}
+                  {isAr ? 'استخدم من 4 إلى 6 أرقام. ستحتاج الرمز عند تغيير السائق أو تسجيل الدخول مجدداً.' : 'Use 4–6 digits. This PIN is required after switching drivers or signing in again.'}
                 </p>
               </div>
 

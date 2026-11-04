@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTransit } from '../context/TransitContext';
 import { Driver } from '../types';
 import { PhoneDisplay } from './PhoneDisplay';
+import { isValidDriverPin } from '../utils/driverPin';
 import {
   ShieldCheck,
   Lock,
@@ -75,13 +76,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
 
   const handleSaveDriverEdit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingDriver) return;
+    if (!editingDriver || !isValidDriverPin(editPin)) return;
 
     adminUpdateDriver(editingDriver.id, {
       nameAr: editNameAr.trim(),
       nameEn: editNameEn.trim(),
       phone: editPhone.trim(),
-      pinCode: editPin.trim() || '1234',
+      pinCode: editPin,
       maxCapacity: Number(editCapacity) || 7
     });
 
@@ -442,12 +443,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  {isAr ? 'رمز الدخول PIN' : 'Login PIN'}
+                <label htmlFor="admin-driver-pin" className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                  {isAr ? 'رمز الدخول (4 إلى 6 أرقام)' : 'Login PIN (4–6 digits)'}
                 </label>
                 <input
+                  id="admin-driver-pin"
                   type="password"
                   maxLength={6}
+                  minLength={4}
+                  pattern="[0-9]{4,6}"
+                  inputMode="numeric"
+                  autoComplete="new-password"
                   value={editPin}
                   onChange={(e) => setEditPin(e.target.value)}
                   dir="ltr"
