@@ -52,3 +52,17 @@ This is a browser-only prototype: PINs and remembered IDs remain in client-side
 data, and the admin portal uses a public demo PIN. These controls are a local
 profile gate, not secure authentication or authorization. Shared production
 accounts need server-side identity, permission checks, and session management.
+
+## Damaged browser data
+
+Saved driver, booking, log, and archive records are validated before use. Valid
+records survive alongside damaged records, with duplicate IDs ignored. If no
+usable driver roster remains, the app falls back to the legacy roster or initial
+demo roster. Recovery reads do not clear or rewrite the original browser data;
+normal edits continue to save the current recovered state.
+
+Incoming BroadcastChannel snapshots are accepted only when the entire collection
+is valid, so a malformed tab message cannot replace working state. Empty booking,
+log, and archive snapshots still support normal clearing. GPS simulation messages
+must contain finite progress between 0 and 100. A browser that blocks channel
+creation can still run locally without tab sync.
