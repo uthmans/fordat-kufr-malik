@@ -1,7 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { useTransit } from '../context/TransitContext';
 import { Driver, TripDirection } from '../types';
-import { PRAYER_SHIFT_CONFIGS, DEPARTURE_COUNTDOWN_CONFIGS } from '../data/initialDrivers';
+import { PRAYER_SHIFT_CONFIGS } from '../data/initialDrivers';
+import { DepartureAnnouncement } from './DepartureAnnouncement';
 import { SeatVisualizer } from './SeatVisualizer';
 import { RouteVisualizer } from './RouteVisualizer';
 import { PWAInstallBanner } from './PWAInstallBanner';
@@ -211,17 +212,7 @@ export const VillagerView: React.FC = () => {
               >
                 <p className="text-xs font-bold text-amber-700 dark:text-amber-400">{demo ? (isAr ? 'بيانات تجريبية' : 'Demo data') : isSignalOld ? (isAr ? 'موقع محفوظ — تحديث قديم' : 'Saved location — stale update') : (isAr ? 'GPS حديث من هذا الهاتف' : 'Recent GPS from this phone')}</p>
                 {/* Quick Departure Announcement Banner if Driver Set Countdown */}
-                {driver.departureCountdown && (
-                  <div className={`p-2.5 rounded-2xl flex items-center justify-between text-xs font-black gap-2 ${DEPARTURE_COUNTDOWN_CONFIGS[driver.departureCountdown].pillBg}`}>
-                    <div className="flex items-center gap-2">
-                      <Zap size={16} className="shrink-0" />
-                      <span>{DEPARTURE_COUNTDOWN_CONFIGS[driver.departureCountdown][isAr ? 'labelAr' : 'labelEn']}</span>
-                    </div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg bg-black/20 text-white">
-                      {isAr ? 'تنبيه مباشر من السائق' : 'Driver Announcement'}
-                    </span>
-                  </div>
-                )}
+                <DepartureAnnouncement driver={driver} now={dataNow} isAr={isAr} />
 
                 {/* 1. Driver Name & Cultural Prayer Shift Badge */}
                 <div className="flex items-center justify-between gap-2 flex-wrap">

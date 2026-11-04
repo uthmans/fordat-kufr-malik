@@ -66,3 +66,13 @@ is valid, so a malformed tab message cannot replace working state. Empty booking
 log, and archive snapshots still support normal clearing. GPS simulation messages
 must contain finite progress between 0 and 100. A browser that blocks channel
 creation can still run locally without tab sync.
+
+## Departure announcements
+
+Five- and ten-minute announcements display the remaining minutes from their
+original saved timestamp, then disappear at the deadline. They never turn into
+an automatic claim that the vehicle departed. “Leaving now” expires after two
+minutes. Both dashboards use the same clock, refreshed every 15 seconds and on
+return to the app. Reopening the app, GPS fixes, and profile edits do not restart
+a timer. Expired buttons can be tapped again to post a new announcement.
+Going off duty clears the announcement; off-duty drivers cannot post a new one.

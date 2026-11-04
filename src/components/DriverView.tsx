@@ -8,6 +8,8 @@ import { TripLogList } from './TripLogList';
 import { DriverLoginView } from './DriverLoginView';
 import { DriverProfileModal } from './DriverProfileModal';
 import { hasRecentSeatCount, hasRecentGPS } from '../utils/dataFreshness';
+import { getDepartureAnnouncement } from '../utils/departureAnnouncement';
+import { DepartureAnnouncement } from './DepartureAnnouncement';
 import {
   Plus,
   Minus,
@@ -62,6 +64,7 @@ export const DriverView: React.FC = () => {
   const isFull = driver.passengers >= driver.maxCapacity;
   const statusConfig = STATUS_CONFIGS[driver.status] || STATUS_CONFIGS.to_ramallah;
   const driverDisplayName = isAr ? driver.nameAr : driver.nameEn;
+  const activeDeparture = getDepartureAnnouncement(driver, dataNow);
 
   return (
     <div className="space-y-4 animate-in fade-in duration-150">
@@ -239,7 +242,7 @@ export const DriverView: React.FC = () => {
               {isAr ? 'تنبيه المغادرة السريع (طالع قريباً):' : 'Quick Departure Announcement:'}
             </h3>
           </div>
-          {driver.departureCountdown && (
+          {activeDeparture && (
             <button
               type="button"
               onClick={() => setDepartureCountdown(driver.id, null)}
@@ -250,17 +253,24 @@ export const DriverView: React.FC = () => {
           )}
         </div>
 
+        <DepartureAnnouncement driver={driver} now={dataNow} isAr={isAr} />
+        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+          {!driver.isOnDuty
+            ? (isAr ? 'فعّل الدوام لإرسال تنبيه مغادرة.' : 'Go on duty to post a departure announcement.')
+            : (isAr ? 'ينتهي التنبيه تلقائياً. «طالع الآن» يظهر لدقيقتين.' : 'Announcements expire automatically. “Leaving now” stays visible for two minutes.')}
+        </p>
         <div className="grid grid-cols-3 gap-2">
           {(['in_10_mins', 'in_5_mins', 'leaving_now'] as const).map((opt) => {
             const conf = DEPARTURE_COUNTDOWN_CONFIGS[opt];
-            const isSelected = driver.departureCountdown === opt;
+            const isSelected = activeDeparture?.key === opt;
 
             return (
               <button
                 key={opt}
                 type="button"
+                disabled={!driver.isOnDuty}
                 onClick={() => setDepartureCountdown(driver.id, isSelected ? null : opt)}
-                className={`py-2.5 px-2 rounded-2xl font-black text-xs flex flex-col items-center justify-center gap-1 transition-all tap-highlight border-2 ${
+                className={`py-2.5 px-2 rounded-2xl font-black text-xs flex flex-col items-center justify-center gap-1 transition-all tap-highlight border-2 disabled:opacity-50 ${
                   isSelected
                     ? `${conf.pillBg} border-white/40 scale-102`
                     : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-50'
