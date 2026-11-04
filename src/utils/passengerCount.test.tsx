@@ -4,10 +4,46 @@ import assert from 'node:assert/strict';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { INITIAL_DRIVERS } from '../data/initialDrivers';
 import { TransitProvider, useTransit } from '../context/TransitContext';
-import { changePassengerCount } from './passengerCount';
+import { changePassengerCount, passengerShortcuts } from './passengerCount';
+import { PassengerPresets } from '../components/PassengerPresets';
 
 const now = 1_800_000_000_000;
 const roster = (passengers = 0, maxCapacity = 7) => [{ ...INITIAL_DRIVERS[0], passengers, maxCapacity }, INITIAL_DRIVERS[1]];
+
+test('quick shortcuts match smaller, standard and larger vehicle capacities', () => {
+  assert.deepEqual(passengerShortcuts(4), [0, 1, 2, 3, 4]);
+  assert.deepEqual(passengerShortcuts(7), [0, 1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(passengerShortcuts(9), [0, 1, 2, 3, 4, 5, 6, 9]);
+  assert.deepEqual(passengerShortcuts(1), [0, 1]);
+});
+
+test('quick choices stay bounded and invalid capacities produce no presets', () => {
+  assert.equal(passengerShortcuts(1000).length, 8);
+  for (const capacity of [0, -1, 1.5, NaN, Infinity]) assert.deepEqual(passengerShortcuts(capacity), []);
+});
+
+test('FULL uses actual capacity rather than seven and retains other vehicle data', () => {
+  for (const capacity of [4, 7, 9]) {
+    const drivers = roster(0, capacity);
+    const next = changePassengerCount(drivers, 'driver-1', { kind: 'full' }, now)!;
+    assert.equal(next[0].passengers, capacity);
+    assert.equal(next[0].seatCountUpdatedAt, now);
+    assert.deepEqual(next[0].currentLocation, drivers[0].currentLocation);
+    assert.equal(next[1], drivers[1]);
+  }
+});
+
+test('rendered Arabic and English presets have one correctly labelled FULL selection', () => {
+  for (const capacity of [4, 7, 9]) {
+    for (const isAr of [false, true]) {
+      const html = renderToStaticMarkup(<PassengerPresets passengers={capacity} capacity={capacity} isAr={isAr} onSet={() => {}} onFull={() => {}} />);
+      assert.ok(html.includes(isAr ? `تعيين السيارة مكتملة (${capacity} مقاعد)` : `Mark vehicle full (${capacity} seats)`));
+      assert.equal((html.match(/aria-pressed="true"/g) ?? []).length, 1);
+      assert.equal((html.match(/<button /g) ?? []).length, passengerShortcuts(capacity).length);
+      if (capacity === 4) assert.ok(!html.includes(isAr ? 'تعيين عدد الركاب إلى 6' : 'Set passenger count to 6'));
+    }
+  }
+});
 
 test('consecutive plus and minus operations accumulate against the latest count', () => {
   let drivers = roster();
@@ -110,4 +146,14 @@ test('a count edit cannot overwrite another change made since the handler was re
   assert.equal(driver.nameEn, 'Latest profile');
   assert.equal(driver.nameAr, 'اسم محدث');
   assert.equal(driver.passengers, 1);
+}));
+
+test('an original FULL handler uses a capacity changed since its screen rendered', () => withProvider((api, read) => {
+  assert.equal(api.adminUpdateDriver('driver-1', { maxCapacity: 9 }), true);
+  api.fillDriverPassengers('driver-1');
+  assert.equal(read('kufr_malik_transit_drivers_v8')[0].passengers, 9);
+  api.updateDriverPassengers('driver-1', 0);
+  assert.equal(api.adminUpdateDriver('driver-1', { maxCapacity: 4 }), true);
+  api.fillDriverPassengers('driver-1');
+  assert.equal(read('kufr_malik_transit_drivers_v8')[0].passengers, 4);
 }));

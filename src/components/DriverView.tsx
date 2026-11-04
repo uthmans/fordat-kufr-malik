@@ -10,6 +10,7 @@ import { DriverProfileModal } from './DriverProfileModal';
 import { hasRecentSeatCount, hasRecentGPS } from '../utils/dataFreshness';
 import { getDepartureAnnouncement } from '../utils/departureAnnouncement';
 import { DepartureAnnouncement } from './DepartureAnnouncement';
+import { PassengerPresets } from './PassengerPresets';
 import {
   Plus,
   Minus,
@@ -43,6 +44,7 @@ export const DriverView: React.FC = () => {
     decrementPassengers,
     updateDriverPassengers,
     confirmDriverPassengers,
+    fillDriverPassengers,
     isTrackingRealGPS,
     isSimulatingGPS,
     language,
@@ -422,22 +424,8 @@ export const DriverView: React.FC = () => {
         </div>
 
         {/* 1-Tap Quick Seat Presets */}
-        <div className="grid grid-cols-8 gap-1 pt-1">
-          {[0, 1, 2, 3, 4, 5, 6, 7].map((num) => (
-            <button
-              key={num}
-              type="button"
-              onClick={() => updateDriverPassengers(driver.id, num)}
-              className={`h-10 sm:h-11 rounded-xl font-mono text-xs font-black transition-all tap-highlight ${
-                driver.passengers === num
-                  ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-600 font-black scale-105 shadow-sm'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
-              }`}
-            >
-              {num === 7 ? (isAr ? 'مكتمل' : 'FULL') : num}
-            </button>
-          ))}
-        </div>
+        <PassengerPresets passengers={driver.passengers} capacity={driver.maxCapacity} isAr={isAr}
+          onSet={count => updateDriverPassengers(driver.id, count)} onFull={() => fillDriverPassengers(driver.id)} />
 
         {/* Visual Seating Graphic */}
         <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-center">
