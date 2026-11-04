@@ -12,6 +12,9 @@ then run `bun run dev`. Open the URL printed by Vite with `/fordat-kufr-malik/`.
 In this repository's **Settings → Pages → Build and deployment**, set **Source**
 to **GitHub Actions**. The workflow builds the app and deploys only `dist/` when
 changes reach `main`. Pull requests run the build without publishing.
+Each build attempt uses a distinct Pages artifact name and passes that name to
+deployment, so retrying a cancelled build cannot create ambiguous duplicate
+`github-pages` packages. Retrying only deployment reuses the build job's output.
 
 The published URL is https://uthmans.github.io/fordat-kufr-malik/.
 Vite's base path and the PWA manifest must all use `/fordat-kufr-malik/`.
