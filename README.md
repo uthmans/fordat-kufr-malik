@@ -76,3 +76,16 @@ minutes. Both dashboards use the same clock, refreshed every 15 seconds and on
 return to the app. Reopening the app, GPS fixes, and profile edits do not restart
 a timer. Expired buttons can be tapped again to post a new announcement.
 Going off duty clears the announcement; off-duty drivers cannot post a new one.
+
+## Archiving a trip
+
+Archive & New Trip uses the latest booking state, saves one archive, and clears
+that driver's current log, passenger count, and previous departure notice. A
+repeated tap after this reset does not create an empty duplicate archive. Other
+drivers' logs and previous archives are retained.
+
+The archive total is the sum of included confirmed booking entries, without a
+hard-coded seven-seat cap. If there are no named bookings (such as station
+boarding), it records the current passenger count instead. This preserves the
+recorded total, including trips with passenger turnover; it does not estimate
+unrecorded boardings. Demo entries follow the existing preview setting.
