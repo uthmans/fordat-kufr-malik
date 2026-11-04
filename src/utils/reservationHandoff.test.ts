@@ -41,6 +41,21 @@ test('a null popup handle is not treated as failed preparation', () => {
   assert.equal(result.ok, true);
 });
 
+test('a rejected current-state save never opens WhatsApp and can be retried', () => {
+  const handoff = new ReservationHandoff();
+  let opened = 0;
+  assert.deepEqual(handoff.submit(input(), () => false, () => { opened++; }), { ok: false, error: 'request' });
+  assert.equal(opened, 0);
+  assert.equal(handoff.submit(input(), () => true, () => { opened++; }).ok, true);
+  assert.equal(opened, 1);
+});
+
+test('a thrown save leaves the draft retryable rather than claiming successful preparation', () => {
+  const handoff = new ReservationHandoff();
+  assert.deepEqual(handoff.submit(input(), () => { throw Error('Save failed'); }, () => assert.fail('No launch')), { ok: false, error: 'request' });
+  assert.equal(handoff.submit(input(), () => true, () => {}).ok, true);
+});
+
 test('invalid names, seat counts, and phone numbers have no side effects', () => {
   for (const changes of [{ name: '  ' }, { seats: 0 }, { seats: 1.5 }, { seats: 8 }, { capacity: 0 }, { phone: 'invalid' }, { phone: '123' }]) {
     const result = new ReservationHandoff().submit({ ...input(), ...changes }, () => assert.fail('No request expected'), () => assert.fail('No launch expected'));
