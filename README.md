@@ -121,3 +121,12 @@ Every reset write and session removal is attempted even if browser storage is
 restricted. The current app state still resets; Settings warns if saving any
 part failed and old data could return on reopening. Tabs must be running this
 version and support BroadcastChannel to receive the reset signal.
+
+## Passenger counter consistency
+
+Plus/minus changes, seat presets and Confirm current count use the latest driver
+snapshot before saving, so rapid taps accumulate and a just-accepted booking or
+other driver/GPS update is retained. Confirmation refreshes the current count
+without writing an older displayed value. Counts stay within the configured
+capacity, and a tap beyond zero/full does not refresh confirmation timestamps.
+Editing the count never resumes duty or removes an inactivity pause.

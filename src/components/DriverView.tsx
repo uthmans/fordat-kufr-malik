@@ -42,6 +42,7 @@ export const DriverView: React.FC = () => {
     incrementPassengers,
     decrementPassengers,
     updateDriverPassengers,
+    confirmDriverPassengers,
     isTrackingRealGPS,
     isSimulatingGPS,
     language,
@@ -348,7 +349,7 @@ export const DriverView: React.FC = () => {
       <div className="bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-3xl p-4 sm:p-5 shadow-sm space-y-4">
         {!hasRecentSeatCount(driver, dataNow) && <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-900 dark:text-amber-200 space-y-2">
           <p>{isAr ? 'أكد عدد الركاب الموجودين في سيارتك. العدد المحفوظ غير مؤكد حديثاً.' : 'Confirm the passengers in your vehicle. The saved count has not been confirmed recently.'}</p>
-          <button type="button" onClick={() => updateDriverPassengers(driver.id, driver.passengers)} className="min-h-10 px-3 rounded-xl bg-amber-500 text-slate-950 font-bold">
+          <button type="button" onClick={() => confirmDriverPassengers(driver.id)} className="min-h-10 px-3 rounded-xl bg-amber-500 text-slate-950 font-bold">
             {isAr ? 'تأكيد العدد الحالي' : 'Confirm current count'}
           </button>
         </div>}
