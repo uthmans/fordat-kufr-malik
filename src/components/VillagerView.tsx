@@ -382,7 +382,7 @@ export const VillagerView: React.FC = () => {
             ) : (
               <form onSubmit={handleLaunchWhatsApp} className="space-y-4 py-4">
                 {handoffError && <p role="alert" className="text-xs font-bold text-rose-600 dark:text-rose-400">{handoffError === 'request'
-                  ? (isAr ? 'تعذر إضافة الطلب. ربما تغيرت بيانات السائق أو سعة السيارة. أغلق الحجز وافتحه مجدداً للمحاولة.' : 'Could not add the request. Driver or vehicle details may have changed. Close and reopen the booking to try again.')
+                  ? (isAr ? 'تعذر إضافة الطلب. بياناتك ما زالت هنا. حاول مجدداً أو اختر سائقاً آخر.' : 'Could not add the request. Your draft is still here. Try again or choose another driver.')
                   : handoffError === 'phone'
                   ? (isAr ? 'رقم واتساب السائق غير صالح. اختر سائقاً آخر.' : 'This driver’s WhatsApp number is invalid. Choose another driver.')
                   : (isAr ? 'عدد المقاعد غير صالح لهذه السيارة.' : 'The seat count is invalid for this vehicle.')}</p>}
