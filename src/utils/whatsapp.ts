@@ -3,7 +3,14 @@
  */
 
 export function cleanWhatsAppNumber(phone: string): string {
-  let cleaned = phone.replace(/[^0-9]/g, '');
+  // Arabic and Persian keyboard digits must be converted before punctuation and
+  // RTL formatting marks are removed, otherwise the actual number is lost.
+  let cleaned = phone
+    .replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/[^0-9]/g, '');
+  // wa.me uses country-code digits without an international dial-out prefix.
+  if (cleaned.startsWith('00')) cleaned = cleaned.substring(2);
   // If local Palestinian mobile starting with 059 or 056, convert to 9705x
   if (cleaned.startsWith('05')) {
     cleaned = '970' + cleaned.substring(1);
