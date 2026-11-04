@@ -9,12 +9,13 @@ import { inferRouteDirection } from '../utils/routeDirection';
 import { pauseInactiveDrivers, recordDutyMovement } from '../utils/dutyActivity';
 import { isDemoRequest, isDemoLog, isDemoArchive } from '../utils/dataFreshness';
 import { AUTH_DRIVER_KEY, VILLAGER_NAME_KEY, normalizeVillagerName, readDriverSession, readVillagerName, storeIdentity } from '../utils/identityStorage';
-import { isValidDriverPin, matchesDriverPin } from '../utils/driverPin';
+import { matchesDriverPin } from '../utils/driverPin';
 import { isSeatRequest, isTripLog, isArchivedTrip, readStoredCollection, restoreDrivers, readSyncMessage } from '../utils/transitData';
 import { archiveTrip } from '../utils/tripArchive';
 import { declineBooking } from '../utils/bookingDecline';
 import { persistTransitReset } from '../utils/transitReset';
 import { changePassengerCount, PassengerChange } from '../utils/passengerCount';
+import { editDriverProfile, DriverProfileUpdates } from '../utils/driverProfile';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
 const REQUESTS_KEY = 'kufr_malik_transit_requests_v6';
@@ -58,7 +59,7 @@ interface TransitContextType {
   resumeDutyFromInactivity: (driverId: string) => void;
 
   // Driver Profile Updates
-  updateDriverProfile: (driverId: string, updates: Partial<Driver>) => void;
+  updateDriverProfile: (driverId: string, updates: DriverProfileUpdates) => boolean;
 
   // Passenger counter
   incrementPassengers: (id: string) => void;
@@ -110,7 +111,7 @@ interface TransitContextType {
   isAdminAuthenticated: boolean;
   adminLogin: (pin: string) => boolean;
   adminLogout: () => void;
-  adminUpdateDriver: (driverId: string, updates: Partial<Driver>) => void;
+  adminUpdateDriver: (driverId: string, updates: DriverProfileUpdates) => boolean;
 }
 
 const TransitContext = createContext<TransitContextType | undefined>(undefined);
@@ -547,23 +548,16 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
 
   // Driver Profile Updates (by driver or admin)
-  const updateDriverProfile = (driverId: string, updates: Partial<Driver>) => {
-    if (updates.pinCode !== undefined && !isValidDriverPin(updates.pinCode)) return;
-    const updated = drivers.map((d) => {
-      if (d.id === driverId) {
-        return {
-          ...d,
-          ...updates,
-          lastUpdated: new Date().toISOString()
-        };
-      }
-      return d;
-    });
-    saveDrivers(updated);
+  const updateDriverProfile = (driverId: string, updates: DriverProfileUpdates) => {
+    const latest = bookingStateRef.current.drivers;
+    const updated = editDriverProfile(latest, driverId, updates, Date.now());
+    if (!updated) return false;
+    if (updated !== latest) saveDrivers(updated);
+    return true;
   };
 
-  const adminUpdateDriver = (driverId: string, updates: Partial<Driver>) => {
-    updateDriverProfile(driverId, updates);
+  const adminUpdateDriver = (driverId: string, updates: DriverProfileUpdates) => {
+    return updateDriverProfile(driverId, updates);
   };
 
   // Dynamic GPS Proximity text updater

@@ -3,6 +3,7 @@ import { useTransit } from '../context/TransitContext';
 import { Driver } from '../types';
 import { PhoneDisplay } from './PhoneDisplay';
 import { isValidDriverPin } from '../utils/driverPin';
+import { changedProfileFields } from '../utils/driverProfile';
 import { User, KeyRound, Phone, Archive, X, Check, Clock, Calendar, Users } from 'lucide-react';
 
 interface DriverProfileModalProps {
@@ -15,10 +16,12 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
   const isAr = language === 'ar';
 
   const [nameAr, setNameAr] = useState(driver.nameAr);
+  const [originalProfile] = useState(driver);
   const [nameEn, setNameEn] = useState(driver.nameEn);
   const [phone, setPhone] = useState(driver.phone);
   const [pinCode, setPinCode] = useState(driver.pinCode);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'history'>('profile');
 
   // Filter archived trips for this driver
@@ -28,12 +31,14 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
     e.preventDefault();
     if (!nameAr.trim() || !nameEn.trim() || !isValidDriverPin(pinCode)) return;
 
-    updateDriverProfile(driver.id, {
+    const saved = updateDriverProfile(driver.id, changedProfileFields(originalProfile, {
       nameAr: nameAr.trim(),
       nameEn: nameEn.trim(),
       phone: phone.trim(),
       pinCode
-    });
+    }));
+    setSaveError(!saved);
+    if (!saved) return;
 
     setSavedSuccess(true);
     setTimeout(() => {
@@ -199,6 +204,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
                 </p>
               </div>
 
+              {saveError && <p role="alert" className="text-xs font-bold text-rose-600">{isAr ? 'تعذر الحفظ. تحقق من الاسم ورقم واتساب ورمز الدخول.' : 'Could not save. Check the name, WhatsApp number and PIN.'}</p>}
               {/* Save Button */}
               <button
                 type="submit"

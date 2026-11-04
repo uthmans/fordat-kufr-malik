@@ -130,3 +130,13 @@ other driver/GPS update is retained. Confirmation refreshes the current count
 without writing an older displayed value. Counts stay within the configured
 capacity, and a tap beyond zero/full does not refresh confirmation timestamps.
 Editing the count never resumes duty or removes an inactivity pause.
+
+## Driver profile edits
+
+Driver and admin forms submit only editable fields changed from the snapshot
+taken when the form opened. Saves merge into the latest driver state, retaining
+newer GPS, booking counts, duty state, other drivers, and untouched phone/PIN
+changes. Profile writes cannot replace operational fields such as IDs or GPS.
+Invalid names, WhatsApp numbers, PINs or capacities reject the save; capacity
+cannot be reduced below current occupancy. Failed saves keep the form open and
+show an error rather than reporting success. A save with no changes writes nothing.

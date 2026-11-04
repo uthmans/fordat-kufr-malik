@@ -3,6 +3,7 @@ import { useTransit } from '../context/TransitContext';
 import { Driver } from '../types';
 import { PhoneDisplay } from './PhoneDisplay';
 import { isValidDriverPin } from '../utils/driverPin';
+import { changedProfileFields } from '../utils/driverProfile';
 import {
   ShieldCheck,
   Lock,
@@ -53,6 +54,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
   const [editPin, setEditPin] = useState('');
   const [editCapacity, setEditCapacity] = useState(7);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState(false);
 
   const handleAdminLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +68,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
   };
 
   const startEditDriver = (d: Driver) => {
+    setSaveError(false);
     setEditingDriver(d);
     setEditNameAr(d.nameAr);
     setEditNameEn(d.nameEn);
@@ -78,13 +81,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
     e.preventDefault();
     if (!editingDriver || !isValidDriverPin(editPin)) return;
 
-    adminUpdateDriver(editingDriver.id, {
+    const saved = adminUpdateDriver(editingDriver.id, changedProfileFields(editingDriver, {
       nameAr: editNameAr.trim(),
       nameEn: editNameEn.trim(),
       phone: editPhone.trim(),
       pinCode: editPin,
-      maxCapacity: Number(editCapacity) || 7
-    });
+      maxCapacity: Number(editCapacity)
+    }));
+    setSaveError(!saved);
+    if (!saved) return;
 
     setSaveSuccess(true);
     setTimeout(() => {
@@ -462,6 +467,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
                 />
               </div>
 
+              {saveError && <p role="alert" className="text-xs font-bold text-rose-600">{isAr ? 'تعذر الحفظ. تحقق من البيانات وسعة السيارة الحالية.' : 'Could not save. Check the profile values and current vehicle capacity.'}</p>}
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
