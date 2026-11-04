@@ -162,3 +162,10 @@ For example, `٠٥٩٩١١١٢٢٢` and `00970 599 111 222` both target `9705991
 Explicit `+972`/`00972` prefixes remain `972`; saved profile text and its LTR
 display are preserved. All booking, confirmation and contact links use the same
 normalizer, while existing empty/incomplete-number validation still applies.
+
+Sign-in checks the latest assigned PIN, including profile changes made since the
+screen rendered. Booking acceptance checks the current session immediately, so
+handlers captured before logout or a driver switch cannot accept the previous
+driver's requests. Session changes stop real GPS and simulation synchronously;
+queued simulation ticks are invalidated rather than reassigned to the next
+driver. These remain browser-local profile controls, not server authentication.
