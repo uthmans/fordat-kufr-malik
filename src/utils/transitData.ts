@@ -83,6 +83,10 @@ export function readSyncMessage(value: unknown) {
   if (!record(value)) return null;
   const payload = value.payload;
   switch (value.type) {
+    case 'RESET_TRANSIT': {
+      const data = validCollection(payload, isDriver);
+      return data?.length ? { type: 'RESET_TRANSIT' as const, payload: data } : null;
+    }
     case 'UPDATE_DRIVERS': {
       const data = validCollection(payload, isDriver);
       return data?.length ? { type: 'UPDATE_DRIVERS' as const, payload: data } : null;
