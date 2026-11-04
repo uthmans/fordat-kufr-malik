@@ -27,7 +27,7 @@ test('existing four to six digit PINs keep leading zeroes and remain usable', ()
 
 test('missing profiles and malformed stored PINs never grant access', () => {
   assert.equal(matchesDriverPin(undefined, '1234'), false);
-  for (const pin of ['', '123', '1234567', '12a4', '１２３４', '1234 ', null, 1234]) {
+  for (const pin of ['', '123', '1234567', '12a4', '１２３４', '1234 ', '1234\n', '1234\r\n', null, 1234]) {
     assert.equal(isValidDriverPin(pin), false);
     assert.equal(matchesDriverPin({ pinCode: pin as string }, pin as string), false);
   }
