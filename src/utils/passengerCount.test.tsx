@@ -104,10 +104,10 @@ test('confirm and increment retain a booking accepted immediately before them', 
 }));
 
 test('a count edit cannot overwrite another change made since the handler was rendered', () => withProvider((api, read) => {
-  api.updateDriverProfile('driver-1', { currentStopEn: 'Latest stop', departureNoteEn: 'Updated note' });
+  api.updateDriverProfile('driver-1', { nameEn: 'Latest profile', nameAr: 'اسم محدث' });
   api.incrementPassengers('driver-1');
   const driver = read('kufr_malik_transit_drivers_v8')[0];
-  assert.equal(driver.currentStopEn, 'Latest stop');
-  assert.equal(driver.departureNoteEn, 'Updated note');
+  assert.equal(driver.nameEn, 'Latest profile');
+  assert.equal(driver.nameAr, 'اسم محدث');
   assert.equal(driver.passengers, 1);
 }));
