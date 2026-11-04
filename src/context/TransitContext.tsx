@@ -213,6 +213,12 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [simulationDirection, setSimulationDirection] = useState<'to_ramallah' | 'to_kufr_malik'>('to_ramallah');
   const [isDetourSimulated, setIsDetourSimulated] = useState(false);
 
+  const stopSimulation = () => {
+    if (simulationTimerRef.current !== null) clearInterval(simulationTimerRef.current);
+    simulationTimerRef.current = null;
+    setIsSimulatingGPS(false);
+  };
+
   // Broadcast sync helper
   const broadcastSync = (type: string, payload: any) => {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -256,8 +262,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Invalidate identity first so queued GPS callbacks cannot repopulate a driver.
     authenticatedDriverIdRef.current = null;
     stopRealGPSTracking();
-    if (simulationTimerRef.current !== null) clearInterval(simulationTimerRef.current);
-    simulationTimerRef.current = null;
+    stopSimulation();
     bookingStateRef.current = { drivers: resetDrivers, requests: [], logs: [] };
     tripHistoryRef.current = [];
     setDrivers(resetDrivers);
@@ -267,7 +272,6 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setAuthenticatedDriverId(null);
     setIsAdminAuthenticated(false);
     setSelectedDriverId(resetDrivers[0].id);
-    setIsSimulatingGPS(false);
     setIsDetourSimulated(false);
     setSimulationProgressState(30);
     setSimulationDirection('to_ramallah');
@@ -347,12 +351,15 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Driver Authentication Logic
   const loginDriver = (driverId: string, pin: string): boolean => {
-    const driver = drivers.find((d) => d.id === driverId);
+    const driver = bookingStateRef.current.drivers.find((d) => d.id === driverId);
     if (!driver) return false;
 
     // Only the selected driver's assigned PIN can open this local profile.
     if (matchesDriverPin(driver, pin)) {
-      if (authenticatedDriverIdRef.current !== driverId) stopRealGPSTracking();
+      if (authenticatedDriverIdRef.current !== driverId) {
+        stopRealGPSTracking();
+        stopSimulation();
+      }
       authenticatedDriverIdRef.current = driverId;
       setAuthenticatedDriverId(driverId);
       setSelectedDriverId(driverId);
@@ -374,7 +381,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     authenticatedDriverIdRef.current = null;
     // A shared phone must not keep updating the previous driver's GPS position.
     stopRealGPSTracking();
-    setIsSimulatingGPS(false);
+    stopSimulation();
     setAuthenticatedDriverId(null);
     storeIdentity(AUTH_DRIVER_KEY, null);
     setActiveTab('driver');
@@ -796,7 +803,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const acceptSeatRequest = (requestId: string) => {
-    const next = acceptBooking(bookingStateRef.current, requestId, authenticatedDriverId, Date.now());
+    const next = acceptBooking(bookingStateRef.current, requestId, authenticatedDriverIdRef.current, Date.now());
     if (!next) return false;
     bookingStateRef.current = next;
     saveDrivers(next.drivers);
