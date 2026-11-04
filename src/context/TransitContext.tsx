@@ -66,6 +66,7 @@ interface TransitContextType {
   decrementPassengers: (id: string) => void;
   updateDriverPassengers: (id: string, count: number) => void;
   confirmDriverPassengers: (id: string) => void;
+  fillDriverPassengers: (id: string) => void;
   updateDriverNote: (id: string, noteEn: string, noteAr: string) => void;
   resetAll: () => void;
   resetStatus: 'saved' | 'memory' | null;
@@ -755,6 +756,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const updateDriverPassengers = (id: string, count: number) => commitPassengerChange(id, { kind: 'set', count });
   const confirmDriverPassengers = (id: string) => commitPassengerChange(id, { kind: 'confirm' });
+  const fillDriverPassengers = (id: string) => commitPassengerChange(id, { kind: 'full' });
   const incrementPassengers = (id: string) => {
     commitPassengerChange(id, { kind: 'adjust', delta: 1 });
   };
@@ -941,6 +943,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
         decrementPassengers,
         updateDriverPassengers,
         confirmDriverPassengers,
+        fillDriverPassengers,
         updateDriverNote,
         resetAll,
         resetStatus,

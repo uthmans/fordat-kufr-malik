@@ -175,3 +175,9 @@ captures the visible trip IDs when that dialog opens and removes only those IDs
 from the latest archive state, preserving new arrivals. Repeated or unknown-ID
 deletions do nothing; stale handlers after admin logout are rejected. Current
 bookings, active logs and passenger counts are unaffected by archive deletion.
+
+Passenger shortcuts follow configured capacity. Smaller vehicles do not show
+out-of-range presets, and FULL reads the current capacity when tapped instead of
+assuming seven seats. Larger vehicles retain compact zero-to-six shortcuts plus
+FULL; intermediate counts remain available through the stepper or seat diagram.
+On phones the shortcuts wrap into four columns with at least 44px button height.
