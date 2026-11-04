@@ -252,6 +252,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (!message) return;
       if (message.type === 'UPDATE_DRIVERS') {
         const payload = message.payload;
+        setDataNow(Date.now());
         bookingStateRef.current.drivers = payload;
         setDrivers(payload);
       } else if (message.type === 'UPDATE_REQUESTS') {
@@ -367,6 +368,8 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return {
           ...d,
           isOnDuty: !d.isOnDuty,
+          departureCountdown: d.isOnDuty ? null : d.departureCountdown,
+          departureCountdownSetAt: d.isOnDuty ? undefined : d.departureCountdownSetAt,
           autoPausedForInactivity: false,
           lastActiveTime: Date.now(),
           lastUpdated: new Date().toISOString()
@@ -406,14 +409,16 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Quick Departure Announcement Countdown
   const setDepartureCountdown = (driverId: string, countdown: DepartureCountdown) => {
+    const now = Date.now();
+    setDataNow(now);
     const updated = drivers.map((d) => {
-      if (d.id === driverId) {
+      if (d.id === driverId && (d.isOnDuty || countdown === null)) {
         return {
           ...d,
           departureCountdown: countdown,
-          departureCountdownSetAt: countdown ? Date.now() : undefined,
-          lastActiveTime: Date.now(),
-          lastUpdated: new Date().toISOString()
+          departureCountdownSetAt: countdown ? now : undefined,
+          lastActiveTime: now,
+          lastUpdated: new Date(now).toISOString()
         };
       }
       return d;
