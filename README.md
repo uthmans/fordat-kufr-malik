@@ -148,3 +148,10 @@ note does not clear an inactivity pause; explicit duty resume is still required.
 GPS fixes, login activation and inactivity checks commit to the same current
 snapshot immediately, so later controls do not wait for React to rerender before
 seeing those updates.
+
+New seat requests append to the latest request collection, retaining arrivals and
+accepted/declined statuses from earlier actions. Creation rechecks the current
+driver and vehicle capacity before saving the primary name. The modal uses the
+current rendered driver phone/capacity at submission; a rejected or throwing
+save keeps the draft retryable and does not open WhatsApp. Successful handoffs
+remain synchronous and deduplicate repeated taps within the same modal session.

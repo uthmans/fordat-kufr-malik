@@ -36,7 +36,7 @@ export const VillagerView: React.FC = () => {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [passengerCount, setPassengerCount] = useState(1);
   const [preparedReservation, setPreparedReservation] = useState<PreparedReservation | null>(null);
-  const [handoffError, setHandoffError] = useState<'seats' | 'phone' | null>(null);
+  const [handoffError, setHandoffError] = useState<'seats' | 'phone' | 'request' | null>(null);
   const handoffRef = useRef(new ReservationHandoff());
 
   const isAr = language === 'ar';
@@ -79,9 +79,11 @@ export const VillagerView: React.FC = () => {
   const handleLaunchWhatsApp = (e: React.FormEvent) => {
     e.preventDefault();
     if (!requestingForDriver || preparedReservation) return;
+    const currentDriver = drivers.find(driver => driver.id === requestingForDriver.id);
+    if (!currentDriver) { setHandoffError('request'); return; }
     const result = handoffRef.current.submit({
-      driverId: requestingForDriver.id, phone: requestingForDriver.phone,
-      name: passengerName, seats: passengerCount, capacity: requestingForDriver.maxCapacity, isArabic: isAr
+      driverId: currentDriver.id, phone: currentDriver.phone,
+      name: passengerName, seats: passengerCount, capacity: currentDriver.maxCapacity, isArabic: isAr
     }, (reservation) => requestSeat(reservation.driverId, reservation.name, reservation.seats),
     (url) => { window.open(url, '_blank', 'noopener,noreferrer'); });
     if (!result.ok) {
@@ -379,7 +381,9 @@ export const VillagerView: React.FC = () => {
               </div>
             ) : (
               <form onSubmit={handleLaunchWhatsApp} className="space-y-4 py-4">
-                {handoffError && <p role="alert" className="text-xs font-bold text-rose-600 dark:text-rose-400">{handoffError === 'phone'
+                {handoffError && <p role="alert" className="text-xs font-bold text-rose-600 dark:text-rose-400">{handoffError === 'request'
+                  ? (isAr ? 'تعذر إضافة الطلب. ربما تغيرت بيانات السائق أو سعة السيارة. أغلق الحجز وافتحه مجدداً للمحاولة.' : 'Could not add the request. Driver or vehicle details may have changed. Close and reopen the booking to try again.')
+                  : handoffError === 'phone'
                   ? (isAr ? 'رقم واتساب السائق غير صالح. اختر سائقاً آخر.' : 'This driver’s WhatsApp number is invalid. Choose another driver.')
                   : (isAr ? 'عدد المقاعد غير صالح لهذه السيارة.' : 'The seat count is invalid for this vehicle.')}</p>}
                 <p className="text-xs text-amber-700 dark:text-amber-300">{isAr ? 'التوفر يحتاج تأكيد السائق عبر واتساب. هذا طلب حجز وليس تأكيداً.' : 'The driver must confirm availability through WhatsApp. This is a request, not a confirmed booking.'}</p>

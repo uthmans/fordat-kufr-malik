@@ -94,7 +94,7 @@ interface TransitContextType {
     passengerName: string,
     seatCount: number,
     phone?: string
-  ) => void;
+  ) => boolean;
   acceptSeatRequest: (requestId: string) => boolean;
   declineSeatRequest: (requestId: string) => boolean;
 
@@ -774,8 +774,11 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     seatCount: number,
     phone?: string
   ) => {
-    const primaryName = rememberVillagerName(passengerName);
-    if (!primaryName) return;
+    const latest = bookingStateRef.current;
+    const driver = latest.drivers.find(d => d.id === driverId);
+    const primaryName = normalizeVillagerName(passengerName);
+    if (!driver || !primaryName || !Number.isSafeInteger(seatCount) || seatCount < 1 ||
+        !Number.isSafeInteger(driver.maxCapacity) || seatCount > driver.maxCapacity) return false;
     const newReq: SeatRequest = {
       id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       driverId,
@@ -786,8 +789,10 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
       status: 'pending'
     };
 
-    const updated = [newReq, ...seatRequests];
+    const updated = [newReq, ...latest.requests];
     saveRequests(updated);
+    rememberVillagerName(primaryName);
+    return true;
   };
 
   const acceptSeatRequest = (requestId: string) => {
