@@ -107,3 +107,17 @@ a still-pending request. A late decline cannot overwrite an accepted request or
 its confirmed log; repeated declines do nothing. Other requests, passenger counts
 and trip logs are unchanged. Drivers may decline while off duty, and a rejected
 action explains that the request may already have been handled.
+
+## Resetting prototype data
+
+Reset asks for confirmation before restoring demo driver profiles/PINs and
+clearing bookings, active logs, archives, and remembered driver/admin sessions.
+It sends one validated reset snapshot to other open tabs, where tracking,
+simulation, sessions, and current booking/history refs are also reset. Receivers
+do not rebroadcast the reset. Saved villager names and display/language
+preferences are retained.
+
+Every reset write and session removal is attempted even if browser storage is
+restricted. The current app state still resets; Settings warns if saving any
+part failed and old data could return on reopening. Tabs must be running this
+version and support BroadcastChannel to receive the reset signal.

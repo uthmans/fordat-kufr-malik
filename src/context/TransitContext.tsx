@@ -13,6 +13,7 @@ import { isValidDriverPin, matchesDriverPin } from '../utils/driverPin';
 import { isSeatRequest, isTripLog, isArchivedTrip, readStoredCollection, restoreDrivers, readSyncMessage } from '../utils/transitData';
 import { archiveTrip } from '../utils/tripArchive';
 import { declineBooking } from '../utils/bookingDecline';
+import { persistTransitReset } from '../utils/transitReset';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
 const REQUESTS_KEY = 'kufr_malik_transit_requests_v6';
@@ -64,6 +65,7 @@ interface TransitContextType {
   updateDriverPassengers: (id: string, count: number) => void;
   updateDriverNote: (id: string, noteEn: string, noteAr: string) => void;
   resetAll: () => void;
+  resetStatus: 'saved' | 'memory' | null;
 
 
   // Real GPS Geolocation
@@ -198,10 +200,12 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Real GPS state
   const [isTrackingRealGPS, setIsTrackingRealGPS] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [resetStatus, setResetStatus] = useState<'saved' | 'memory' | null>(null);
   const gpsWatchRef = useRef<DriverLocationWatch | null>(null);
 
   // Simulation state
   const [isSimulatingGPS, setIsSimulatingGPS] = useState(false);
+  const simulationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [simulationProgress, setSimulationProgressState] = useState(30);
   const [simulationDirection, setSimulationDirection] = useState<'to_ramallah' | 'to_kufr_malik'>('to_ramallah');
   const [isDetourSimulated, setIsDetourSimulated] = useState(false);
@@ -245,6 +249,31 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     broadcastSync('UPDATE_TRIP_HISTORY', newHistory);
   }, []);
 
+  const applyTransitReset = (resetDrivers: Driver[]) => {
+    // Invalidate identity first so queued GPS callbacks cannot repopulate a driver.
+    authenticatedDriverIdRef.current = null;
+    stopRealGPSTracking();
+    if (simulationTimerRef.current !== null) clearInterval(simulationTimerRef.current);
+    simulationTimerRef.current = null;
+    bookingStateRef.current = { drivers: resetDrivers, requests: [], logs: [] };
+    tripHistoryRef.current = [];
+    setDrivers(resetDrivers);
+    setSeatRequests([]);
+    setTripLogs([]);
+    setTripHistory([]);
+    setAuthenticatedDriverId(null);
+    setIsAdminAuthenticated(false);
+    setSelectedDriverId(resetDrivers[0].id);
+    setIsSimulatingGPS(false);
+    setIsDetourSimulated(false);
+    setSimulationProgressState(30);
+    setSimulationDirection('to_ramallah');
+    setGpsError(null);
+    setDataNow(Date.now());
+    setActiveTab('settings');
+    setResetStatus(persistTransitReset(resetDrivers) ? 'saved' : 'memory');
+  };
+
   // Multi-tab listener
   useEffect(() => {
     if (typeof window === 'undefined' || !('BroadcastChannel' in window)) return;
@@ -255,7 +284,9 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     channel.onmessage = (event) => {
       const message = readSyncMessage(event.data);
       if (!message) return;
-      if (message.type === 'UPDATE_DRIVERS') {
+      if (message.type === 'RESET_TRANSIT') {
+        applyTransitReset(message.payload);
+      } else if (message.type === 'UPDATE_DRIVERS') {
         const payload = message.payload;
         setDataNow(Date.now());
         bookingStateRef.current.drivers = payload;
@@ -681,6 +712,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const interval = setInterval(() => {
       setSimulationProgressState((prev) => {
+        if (simulationTimerRef.current !== interval) return prev;
         let next = prev;
         if (simulationDirection === 'to_ramallah') {
           next = prev + 3;
@@ -708,8 +740,11 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return next;
       });
     }, 1500);
-
-    return () => clearInterval(interval);
+    simulationTimerRef.current = interval;
+    return () => {
+      clearInterval(interval);
+      if (simulationTimerRef.current === interval) simulationTimerRef.current = null;
+    };
   }, [isSimulatingGPS, simulationDirection, isDetourSimulated, selectedDriverId, updateDriverLocation]);
 
   // Passenger counter
@@ -875,21 +910,11 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const resetAll = () => {
-    authenticatedDriverIdRef.current = null;
-    saveDrivers(INITIAL_DRIVERS);
-    localStorage.removeItem(REQUESTS_KEY);
-    localStorage.removeItem(TRIP_LOGS_KEY);
-    localStorage.removeItem(TRIP_HISTORY_KEY);
-    localStorage.removeItem(AUTH_DRIVER_KEY);
-    localStorage.removeItem(ADMIN_AUTH_KEY);
-    setAuthenticatedDriverId(null);
-    setIsAdminAuthenticated(false);
-    setSeatRequests([]);
-    setTripLogs([]);
-    setTripHistory([]);
-    setIsSimulatingGPS(false);
-    setIsDetourSimulated(false);
-    stopRealGPSTracking();
+    const resetDrivers = structuredClone(INITIAL_DRIVERS);
+    applyTransitReset(resetDrivers);
+    // One reset event lets every tab clear its sessions and tracking as well as data.
+    // Receivers apply it without rebroadcasting, preventing reset loops.
+    broadcastSync('RESET_TRANSIT', resetDrivers);
   };
 
   const effectiveDriverId = authenticatedDriverId || selectedDriverId;
@@ -929,6 +954,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateDriverPassengers,
         updateDriverNote,
         resetAll,
+        resetStatus,
         isTrackingRealGPS,
         startRealGPSTracking,
         stopRealGPSTracking,

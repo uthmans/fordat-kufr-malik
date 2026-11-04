@@ -4,6 +4,7 @@ import { usePWAInstall } from '../hooks/usePWAInstall';
 import { GPSSimulatorPanel } from './GPSSimulatorPanel';
 import { AdminPortal } from './AdminPortal';
 import { AppUpdateSettings } from './AppUpdateSettings';
+import { ResetConfirmation } from './ResetConfirmation';
 import {
   Smartphone,
   Sun,
@@ -16,10 +17,11 @@ import {
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
-  const { language, setLanguage, highContrast, setHighContrast, resetAll } = useTransit();
+  const { language, setLanguage, highContrast, setHighContrast, resetAll, resetStatus } = useTransit();
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const isAr = language === 'ar';
   const [showAdminPortal, setShowAdminPortal] = useState(false);
+  const [showResetConfirmation, setShowResetConfirmation] = useState(false);
 
   if (showAdminPortal) {
     return <AdminPortal onClose={() => setShowAdminPortal(false)} />;
@@ -184,13 +186,21 @@ export const SettingsView: React.FC = () => {
 
         <button
           type="button"
-          onClick={resetAll}
+          onClick={() => setShowResetConfirmation(true)}
           className="py-2 px-3 bg-white dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors tap-highlight"
         >
           <RotateCcw size={13} />
           <span>{isAr ? 'إعادة ضبط' : 'Reset'}</span>
         </button>
       </div>
+      {showResetConfirmation && <ResetConfirmation isAr={isAr}
+        onCancel={() => setShowResetConfirmation(false)}
+        onConfirm={() => { resetAll(); setShowResetConfirmation(false); }} />}
+      {resetStatus && <p role="status" className={`text-xs p-3 rounded-2xl ${resetStatus === 'memory' ? 'bg-amber-100 text-amber-950' : 'bg-emerald-50 text-emerald-800'}`}>
+        {resetStatus === 'memory'
+          ? (isAr ? 'تمت إعادة الضبط في التطبيق، لكن المتصفح لم يحفظها بالكامل. قد تعود بيانات قديمة عند إعادة الفتح.' : 'The app was reset, but your browser could not save every change. Old data may return after reopening.')
+          : (isAr ? 'تمت إعادة الضبط وتسجيل الخروج في تبويبات التطبيق المفتوحة على هذا الجهاز.' : 'Reset complete. Open app tabs on this device have been signed out.')}
+      </p>}
     </div>
   );
 };
