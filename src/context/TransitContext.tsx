@@ -11,6 +11,7 @@ import { isDemoRequest, isDemoLog, isDemoArchive } from '../utils/dataFreshness'
 import { AUTH_DRIVER_KEY, VILLAGER_NAME_KEY, normalizeVillagerName, readDriverSession, readVillagerName, storeIdentity } from '../utils/identityStorage';
 import { isValidDriverPin, matchesDriverPin } from '../utils/driverPin';
 import { isSeatRequest, isTripLog, isArchivedTrip, readStoredCollection, restoreDrivers, readSyncMessage } from '../utils/transitData';
+import { archiveTrip } from '../utils/tripArchive';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
 const REQUESTS_KEY = 'kufr_malik_transit_requests_v6';
@@ -186,6 +187,8 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Archived Trips History
   const [tripHistory, setTripHistory] = useState<ArchivedTrip[]>(() => readStoredCollection(TRIP_HISTORY_KEY, isArchivedTrip));
+  const tripHistoryRef = useRef(tripHistory);
+  tripHistoryRef.current = tripHistory;
 
   // Read the latest accepted changes even before React renders a second tap.
   const bookingStateRef = useRef<BookingState>({ drivers, requests: seatRequests, logs: tripLogs });
@@ -235,6 +238,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const saveTripHistory = useCallback((newHistory: ArchivedTrip[]) => {
+    tripHistoryRef.current = newHistory;
     setTripHistory(newHistory);
     try { localStorage.setItem(TRIP_HISTORY_KEY, JSON.stringify(newHistory)); } catch {}
     broadcastSync('UPDATE_TRIP_HISTORY', newHistory);
@@ -264,6 +268,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
         bookingStateRef.current.logs = payload;
         setTripLogs(payload);
       } else if (message.type === 'UPDATE_TRIP_HISTORY') {
+        tripHistoryRef.current = message.payload;
         setTripHistory(message.payload);
       } else if (message.type === 'GPS_SIM_PROGRESS') {
         setSimulationProgressState(message.payload.progress);
@@ -834,32 +839,25 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Archive Current Trip & Reset Active Log for new trip
   const archiveCurrentTrip = (driverId: string) => {
-    const driver = drivers.find((d) => d.id === driverId);
-    const driverEntries = tripLogs.filter((l) => l.driverId === driverId && (showDemoData || !isDemoLog(l)));
-    const totalSeats = driverEntries.reduce((sum, e) => sum + e.seatCount, 0) || (driver?.passengers ?? 0);
-
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', {
+    const now = Date.now();
+    const formattedDate = new Date(now).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     });
 
-    const newArchivedTrip: ArchivedTrip = {
-      id: `arch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      driverId,
-      timestamp: Date.now(),
-      formattedDate,
-      passengersCount: Math.min(7, totalSeats),
-      locationStatus: driver?.status || 'in_kufr_malik',
-      entries: driverEntries,
-      isDemo: driverEntries.some(isDemoLog)
-    };
-
-    saveTripHistory([newArchivedTrip, ...tripHistory]);
-    clearTripLog(driverId);
-    updateDriverPassengers(driverId, 0);
+    const latest = bookingStateRef.current;
+    const next = archiveTrip({ drivers: latest.drivers, logs: latest.logs, history: tripHistoryRef.current },
+      driverId, now, `arch-${now}-${Math.random().toString(36).slice(2, 8)}`, formattedDate, showDemoData);
+    if (!next) return;
+    // Commit all in-memory changes before another tap can use stale React state.
+    bookingStateRef.current = { ...latest, drivers: next.drivers, logs: next.logs };
+    tripHistoryRef.current = next.history;
+    saveTripHistory(next.history);
+    saveTripLogs(next.logs);
+    saveDrivers(next.drivers);
+    setDataNow(now);
 
     if (typeof window !== 'undefined' && navigator.vibrate) {
       try { navigator.vibrate([30, 40, 30]); } catch {}
