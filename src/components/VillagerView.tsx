@@ -25,7 +25,13 @@ import {
 } from 'lucide-react';
 
 export const VillagerView: React.FC = () => {
-  const { drivers, language, setSelectedDriverId, requestSeat, villagerName, showDemoData, dataNow } = useTransit();
+  const { drivers: localDrivers, shared, language, setSelectedDriverId, requestSeat, villagerName, showDemoData, dataNow } = useTransit();
+  // Local cached/demo GPS must never impersonate an update from another phone.
+  const drivers = showDemoData ? localDrivers : localDrivers.map(driver => {
+    const row = shared.rows.find(row => row.driver_id === driver.id);
+    return row ? { ...driver, ...row.snapshot } : { ...driver, gpsMode: 'idle' as const,
+      isOnDuty: false, seatCountUpdatedAt: undefined, currentLocation: { lat: 0, lng: 0, timestamp: 0 } };
+  });
   const [filterDirection, setFilterDirection] = useState<TripDirection>('all');
   const [requestingForDriver, setRequestingForDriver] = useState<Driver | null>(null);
 
@@ -117,7 +123,7 @@ export const VillagerView: React.FC = () => {
           }
         }}
       /> : <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-500">
-        {isAr ? 'لا توجد مواقع GPS حديثة على هذا الجهاز.' : 'No recent GPS locations on this device.'}
+        {isAr ? 'لا توجد مواقع GPS مشتركة حديثة حالياً.' : 'No recent shared GPS locations available.'}
       </div>}
 
       {/* Direction Filters */}
@@ -160,7 +166,7 @@ export const VillagerView: React.FC = () => {
         }
         {/* Total open seats with pluralization */}
         <div className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
-          <span className="block font-sans text-slate-500">{showDemoData ? (isAr ? 'معاينة المقاعد (تشمل بيانات تجريبية)' : 'Seat preview (includes demo data)') : (isAr ? 'مقاعد مؤكدة حديثاً على هذا الجهاز' : 'Recently confirmed seats on this device')}</span>
+          <span className="block font-sans text-slate-500">{showDemoData ? (isAr ? 'معاينة المقاعد (تشمل بيانات تجريبية)' : 'Seat preview (includes demo data)') : (isAr ? 'مقاعد مؤكدة حديثاً من السائقين' : 'Recently confirmed seats from drivers')}</span>
           {confirmedDrivers.length === 0 ? (isAr ? 'لا يوجد تحديث مؤكد للمقاعد' : 'No confirmed seat updates') : totalOpenSeats > 0 ? (
             isAr ? (
               totalOpenSeats === 1

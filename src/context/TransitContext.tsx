@@ -16,6 +16,8 @@ import { declineBooking } from '../utils/bookingDecline';
 import { persistTransitReset } from '../utils/transitReset';
 import { changePassengerCount, PassengerChange } from '../utils/passengerCount';
 import { editDriverProfile, DriverProfileUpdates } from '../utils/driverProfile';
+import { useSharedDrivers } from '../hooks/useSharedDrivers';
+import type { SharedDriverRow } from '../utils/sharedDriver';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
 const REQUESTS_KEY = 'kufr_malik_transit_requests_v6';
@@ -28,6 +30,7 @@ const CONTRAST_KEY = 'kufr_malik_transit_contrast';
 const MASTER_ADMIN_PIN = '9999';
 
 interface TransitContextType {
+  shared: ReturnType<typeof useSharedDrivers>;
   showDemoData: boolean;
   setShowDemoData: (value: boolean) => void;
   dataNow: number;
@@ -240,6 +243,23 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     broadcastSync('UPDATE_DRIVERS', newDrivers);
   }, []);
 
+  const hydrateSharedOwner = (row: SharedDriverRow) => {
+    const latest = bookingStateRef.current.drivers;
+    const current = latest.find(driver => driver.id === row.driver_id);
+    if (!current || authenticatedDriverIdRef.current !== row.driver_id) return undefined;
+    // Adopt shared counters/duty before publishing. GPS belongs to this phone.
+    const hydrated = { ...current, ...row.snapshot, currentLocation: current.currentLocation,
+      directionAnchor: current.directionAnchor, dutyMovementAnchor: current.dutyMovementAnchor,
+      gpsMode: current.gpsMode, bearing: current.bearing, detectedNodeId: current.detectedNodeId,
+      status: current.status, isDetour: current.isDetour, detourNameEn: current.detourNameEn,
+      detourNameAr: current.detourNameAr, currentStopEn: current.currentStopEn,
+      currentStopAr: current.currentStopAr, proximityStatusEn: current.proximityStatusEn,
+      proximityStatusAr: current.proximityStatusAr };
+    saveDrivers(latest.map(driver => driver.id === current.id ? hydrated : driver));
+    return hydrated;
+  };
+  const shared = useSharedDrivers(drivers, authenticatedDriverId, hydrateSharedOwner);
+
   const saveRequests = useCallback((newRequests: SeatRequest[]) => {
     bookingStateRef.current.requests = newRequests;
     setSeatRequests(newRequests);
@@ -262,6 +282,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const applyTransitReset = (resetDrivers: Driver[]) => {
+    shared.stopSharing();
     // Invalidate identity first so queued GPS callbacks cannot repopulate a driver.
     authenticatedDriverIdRef.current = null;
     stopRealGPSTracking();
@@ -361,6 +382,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Only the selected driver's assigned PIN can open this local profile.
     if (matchesDriverPin(driver, pin)) {
       if (authenticatedDriverIdRef.current !== driverId) {
+        shared.stopSharing();
         stopRealGPSTracking();
         stopSimulation();
       }
@@ -382,6 +404,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const logoutDriver = () => {
+    shared.stopSharing();
     authenticatedDriverIdRef.current = null;
     // A shared phone must not keep updating the previous driver's GPS position.
     stopRealGPSTracking();
@@ -915,6 +938,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   return (
     <TransitContext.Provider
       value={{
+        shared,
         showDemoData,
         setShowDemoData,
         dataNow,
