@@ -29,3 +29,13 @@ open with a native retry link, so a blocked popup or a return from WhatsApp does
 not require another reservation submission. Retrying that link does not create
 another saved request. The passenger still needs to send the message in WhatsApp
 and wait for the driver's confirmation; preparing a draft does not confirm seats.
+
+## App updates
+
+Production builds check for updates when the app returns to the foreground,
+reconnects, and every five minutes while visible and online. A downloaded update
+shows an Arabic or English notice without reloading an open booking or edit.
+Choose **Update now** after finishing your work, or **Later** to dismiss the notice
+for that session. **Settings & GPS → App updates** also provides a manual check
+and keeps a deferred update available. Updating does not clear saved identities
+or other local app data.
