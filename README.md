@@ -189,3 +189,64 @@ rerenders. Rejected actions do not write counts or refresh their timestamps.
 Signing back in restores the controls for that driver. These are browser-local
 session checks; the prototype still requires server-side authorization for shared
 production accounts.
+
+## Shared driver updates (first backend stage)
+
+The first shared-data stage is a public driver feed, separate from private
+booking requests, trip logs, credentials and archives. `sharedDriver.ts` defines
+the allowlisted public payload and validates server revisions, so a late response
+cannot replace a newer driver update. Unknown payload fields are rejected.
+
+`supabase/migrations/202611040001_shared_driver_feed.sql` is applied to the Free
+Kufr Malik Transit project (`pwrsxqlunxntvqholhiz`) in the Salama organization.
+It provides a public read-only feed, private Auth-user-to-driver assignments,
+and database policies allowing an assigned driver to insert/update only their
+own snapshot. Clients cannot change assignments, delete rows, or set server
+revision/receipt columns. Simulated locations are rejected by the database.
+Publishers must update using both driver ID and the last acknowledged revision;
+a zero-row update is a conflict and must trigger a refresh, not a blind overwrite.
+
+The frontend reads this feed using the public URL and publishable key in
+`src/config/sharedBackend.ts`. No database password or secret/service-role key
+belongs in the browser. Viewers subscribe only while the app is visible and
+online; reconnect refetches the database snapshot. A five-minute reconciliation
+also recovers missed events. Local/demo GPS is excluded from the public view.
+
+Settings & GPS > Connect driver phone verifies Supabase sign-in and the assigned
+driver ID. Local PINs, the demo admin PIN, and saved local driver IDs cannot
+authorize cloud publishing or change assignments. Starting sharing reloads
+existing shared counters/duty before publishing; this phone retains its GPS.
+GPS-only publications are limited to one per minute, while seat/duty changes
+publish on the next two-second flush. Unchanged snapshots are skipped. Simulation
+and old GPS are not uploaded. Going off duty removes precise GPS from the
+published snapshot. A failed/conflicting save stops publication and requires
+starting again to reconcile; old data is never automatically replayed.
+
+Sharing must be started after each app launch. A restored cloud account is not
+permission to silently restart GPS publication. Stopping sharing leaves the last
+snapshot subject to existing freshness checks; it does not change duty. Driver
+logout, switching local profiles, reset and cloud sign-out stop the publisher.
+
+### First driver setup
+
+An administrator must first create a real driver account in the project's
+Supabase **Authentication > Users** dashboard. The account owner chooses their
+password; do not store it in the repository. Then add one approved assignment in
+`transit_driver_owners`, using that Auth user's UUID and the roster ID (`driver-1`
+through `driver-8`). Never grant clients permission to assign themselves.
+
+On the driver's phone: open the matching local Driver Mode profile, enable Phone
+GPS, sign in to the approved shared account in Settings, then Start sharing.
+Check an independent viewer phone before expanding the trial. Real driver
+accounts and assignments have not been provisioned automatically.
+
+Database regression SQL is in `supabase/tests/shared_driver_feed.sql`: it tests
+anonymous access, two-driver isolation, revision conflicts, private-field and
+simulation rejection, invalid coordinates, capacity checks and forbidden deletes.
+All test users/records are rolled back. Security/performance advisors returned no
+issues after applying the schema. Actual two-phone GPS behavior still needs a
+pilot with an approved real driver account.
+
+Keep local demo data, identities and archives on-device during the first stage.
+Do not automatically upload stored collections. Private shared bookings require
+a separate migration and server transaction for acceptance/capacity changes.

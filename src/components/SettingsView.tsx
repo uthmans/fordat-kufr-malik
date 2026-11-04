@@ -5,6 +5,7 @@ import { GPSSimulatorPanel } from './GPSSimulatorPanel';
 import { AdminPortal } from './AdminPortal';
 import { AppUpdateSettings } from './AppUpdateSettings';
 import { ResetConfirmation } from './ResetConfirmation';
+import { SharedConnectionPanel } from './SharedConnectionPanel';
 import {
   Smartphone,
   Sun,
@@ -30,6 +31,7 @@ export const SettingsView: React.FC = () => {
   return (
     <div className="space-y-5 pb-8">
       <AppUpdateSettings />
+      <SharedConnectionPanel />
       {/* 1. GPS Tracking & Movement Simulation Lab */}
       <GPSSimulatorPanel />
 

@@ -3,7 +3,7 @@ import { useTransit } from '../context/TransitContext';
 import { Bus, Sun, Moon } from 'lucide-react';
 
 export const Header: React.FC = () => {
-  const { language, setLanguage, highContrast, setHighContrast, isTrackingRealGPS, isSimulatingGPS, showDemoData, isOnline } = useTransit();
+  const { language, setLanguage, highContrast, setHighContrast, isTrackingRealGPS, isSimulatingGPS, showDemoData, isOnline, shared } = useTransit();
   const isAr = language === 'ar';
 
   return (
@@ -27,7 +27,8 @@ export const Header: React.FC = () => {
                   : isSimulatingGPS
                   ? isAr ? 'محاكاة نشطة' : 'Sim Active'
                   : !isOnline ? (isAr ? 'دون اتصال' : 'Offline')
-                  : showDemoData ? (isAr ? 'تجريبي' : 'Demo') : (isAr ? 'هذا الجهاز' : 'This device')}
+                  : showDemoData ? (isAr ? 'تجريبي' : 'Demo')
+                  : shared.status === 'connected' ? (isAr ? 'تحديثات مشتركة' : 'Shared updates') : (isAr ? 'غير متصل' : 'Disconnected')}
               </span>
             </div>
           </div>
