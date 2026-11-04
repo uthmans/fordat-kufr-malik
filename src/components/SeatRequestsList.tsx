@@ -13,7 +13,7 @@ interface SeatRequestsListProps {
 export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) => {
   const { seatRequests, acceptSeatRequest, declineSeatRequest, language, currentDriver } = useTransit();
   const isAr = language === 'ar';
-  const [acceptError, setAcceptError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<'accept' | 'decline' | null>(null);
 
   const relevantRequests = seatRequests.filter((r) => r.driverId === driverId);
   const pendingRequests = relevantRequests.filter((r) => r.status === 'pending');
@@ -57,7 +57,9 @@ export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) 
         )}
       </div>
 
-      {acceptError && <p role="alert" className="text-xs font-bold text-rose-600 dark:text-rose-400">{isAr ? 'تعذر قبول الطلب. تحقق من حالة الدوام والمقاعد المتاحة وحالة الطلب.' : 'Could not accept this request. Check duty status, available seats and request status.'}</p>}
+      {actionError && <p role="alert" className="text-xs font-bold text-rose-600 dark:text-rose-400">{actionError === 'decline'
+        ? (isAr ? 'تعذر رفض الطلب. ربما تمت معالجته أو تغيّر السائق المسجل.' : 'Could not decline this request. It may already be handled, or the signed-in driver has changed.')
+        : (isAr ? 'تعذر قبول الطلب. تحقق من حالة الدوام والمقاعد المتاحة وحالة الطلب.' : 'Could not accept this request. Check duty status, available seats and request status.')}</p>}
 
       {/* Pending Requests List */}
       {pendingRequests.length === 0 ? (
@@ -108,7 +110,7 @@ export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) 
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => setAcceptError(acceptSeatRequest(req.id) ? null : req.id)}
+                  onClick={() => setActionError(acceptSeatRequest(req.id) ? null : 'accept')}
                   disabled={!!error}
                   className={`min-h-[48px] rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-sm transition-all tap-highlight ${
                     error
@@ -122,7 +124,7 @@ export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) 
 
                 <button
                   type="button"
-                  onClick={() => declineSeatRequest(req.id)}
+                  onClick={() => setActionError(declineSeatRequest(req.id) ? null : 'decline')}
                   className="min-h-[48px] rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all tap-highlight"
                 >
                   <X size={18} strokeWidth={3} />

@@ -12,6 +12,7 @@ import { AUTH_DRIVER_KEY, VILLAGER_NAME_KEY, normalizeVillagerName, readDriverSe
 import { isValidDriverPin, matchesDriverPin } from '../utils/driverPin';
 import { isSeatRequest, isTripLog, isArchivedTrip, readStoredCollection, restoreDrivers, readSyncMessage } from '../utils/transitData';
 import { archiveTrip } from '../utils/tripArchive';
+import { declineBooking } from '../utils/bookingDecline';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
 const REQUESTS_KEY = 'kufr_malik_transit_requests_v6';
@@ -90,7 +91,7 @@ interface TransitContextType {
     phone?: string
   ) => void;
   acceptSeatRequest: (requestId: string) => boolean;
-  declineSeatRequest: (requestId: string) => void;
+  declineSeatRequest: (requestId: string) => boolean;
 
   // Driver Trip Log & Archive
   tripLogs: TripLogEntry[];
@@ -802,13 +803,13 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const declineSeatRequest = (requestId: string) => {
+    const updated = declineBooking(bookingStateRef.current, requestId, authenticatedDriverIdRef.current);
+    if (!updated) return false;
+    saveRequests(updated);
     if (typeof window !== 'undefined' && navigator.vibrate) {
       try { navigator.vibrate(50); } catch {}
     }
-    const updated = seatRequests.map((r) =>
-      r.id === requestId ? { ...r, status: 'declined' as const } : r
-    );
-    saveRequests(updated);
+    return true;
   };
 
   const addTripLogEntry = (
