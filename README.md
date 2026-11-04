@@ -155,3 +155,10 @@ driver and vehicle capacity before saving the primary name. The modal uses the
 current rendered driver phone/capacity at submission; a rejected or throwing
 save keeps the draft retryable and does not open WhatsApp. Successful handoffs
 remain synchronous and deduplicate repeated taps within the same modal session.
+
+WhatsApp numbers support English, Arabic-Indic and Persian digits, including
+mixed input, copied RTL formatting marks and `00` international dial-out prefixes.
+For example, `٠٥٩٩١١١٢٢٢` and `00970 599 111 222` both target `970599111222`.
+Explicit `+972`/`00972` prefixes remain `972`; saved profile text and its LTR
+display are preserved. All booking, confirmation and contact links use the same
+normalizer, while existing empty/incomplete-number validation still applies.
