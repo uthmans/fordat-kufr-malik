@@ -6,6 +6,8 @@ import { VillagerView } from './components/VillagerView';
 import { DriverView } from './components/DriverView';
 import { SettingsView } from './components/SettingsView';
 import { DataStatusBanner } from './components/DataStatusBanner';
+import { AppUpdateProvider } from './context/AppUpdateContext';
+import { AppUpdateBanner } from './components/AppUpdateBanner';
 
 const MainAppContent: React.FC = () => {
   const { activeTab, language, highContrast } = useTransit();
@@ -32,6 +34,7 @@ const MainAppContent: React.FC = () => {
       <div className="w-full max-w-lg h-full flex flex-col bg-slate-50 dark:bg-slate-950 border-x border-slate-200 dark:border-slate-800 shadow-2xl relative overflow-hidden">
         {/* Mobile App Bar */}
         <Header />
+        <AppUpdateBanner />
 
         {/* Scrollable Viewport: Internal panel scrolling with generous bottom padding for bottom nav */}
         <div
@@ -54,7 +57,7 @@ const MainAppContent: React.FC = () => {
 export default function App() {
   return (
     <TransitProvider>
-      <MainAppContent />
+      <AppUpdateProvider><MainAppContent /></AppUpdateProvider>
     </TransitProvider>
   );
 }

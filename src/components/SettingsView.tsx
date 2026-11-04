@@ -3,6 +3,7 @@ import { useTransit } from '../context/TransitContext';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { GPSSimulatorPanel } from './GPSSimulatorPanel';
 import { AdminPortal } from './AdminPortal';
+import { AppUpdateSettings } from './AppUpdateSettings';
 import {
   Smartphone,
   Sun,
@@ -26,6 +27,7 @@ export const SettingsView: React.FC = () => {
 
   return (
     <div className="space-y-5 pb-8">
+      <AppUpdateSettings />
       {/* 1. GPS Tracking & Movement Simulation Lab */}
       <GPSSimulatorPanel />
 
