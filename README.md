@@ -181,3 +181,11 @@ out-of-range presets, and FULL reads the current capacity when tapped instead of
 assuming seven seats. Larger vehicles retain compact zero-to-six shortcuts plus
 FULL; intermediate counts remain available through the stepper or seat diagram.
 On phones the shortcuts wrap into four columns with at least 44px button height.
+
+Passenger count edits and confirmations require the currently signed-in driver
+to own the target profile. Old plus/minus, preset, seat and FULL handlers become
+inert immediately after logout or switching drivers, including before React
+rerenders. Rejected actions do not write counts or refresh their timestamps.
+Signing back in restores the controls for that driver. These are browser-local
+session checks; the prototype still requires server-side authorization for shared
+production accounts.
