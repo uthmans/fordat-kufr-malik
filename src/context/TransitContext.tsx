@@ -745,6 +745,8 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Passenger counter
   const commitPassengerChange = (id: string, change: PassengerChange) => {
+    // Read the current session, including a logout/switch before React rerenders.
+    if (authenticatedDriverIdRef.current !== id) return;
     const latest = bookingStateRef.current.drivers;
     const updated = changePassengerCount(latest, id, change, Date.now());
     if (!updated || updated === latest) return;

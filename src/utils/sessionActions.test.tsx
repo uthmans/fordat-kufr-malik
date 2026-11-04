@@ -98,3 +98,62 @@ test('logout clears the GPS watch and ignores a queued old-session location', ()
     else Reflect.deleteProperty(globalThis, 'navigator');
   }
 }));
+
+const countActions: [string, (api: Api, id: string) => void][] = [
+  ['increase', (api, id) => api.incrementPassengers(id)],
+  ['decrease', (api, id) => api.decrementPassengers(id)],
+  ['preset/seat selection', (api, id) => api.updateDriverPassengers(id, 1)],
+  ['confirmation', (api, id) => api.confirmDriverPassengers(id)],
+  ['FULL', (api, id) => api.fillDriverPassengers(id)]
+];
+
+function runCountAction(action: (api: Api, id: string) => void, api: Api, id: string) {
+  // A confirmation in the same millisecond would conceal an unauthorized write.
+  const originalNow = Date.now;
+  const later = originalNow() + 1000;
+  Date.now = () => later;
+  try { action(api, id); } finally { Date.now = originalNow; }
+}
+
+for (const [name, action] of countActions) {
+  test(`old ${name} handler cannot write after logout`, () => withSession((api, data) => {
+    api.updateDriverPassengers('driver-1', 3);
+    api.logoutDriver();
+    const before = [...data];
+    runCountAction(action, api, 'driver-1');
+    assert.deepEqual([...data], before);
+  }));
+
+  test(`old ${name} handler cannot edit the previous driver after switching`, () => withSession((api, data) => {
+    api.updateDriverPassengers('driver-1', 3);
+    assert.equal(api.loginDriver('driver-2', '1234'), true);
+    const before = [...data];
+    runCountAction(action, api, 'driver-1');
+    assert.deepEqual([...data], before);
+  }));
+
+  test(`${name} cannot target another driver while signed in`, () => withSession((api, data) => {
+    assert.equal(api.loginDriver('driver-2', '1234'), true);
+    api.updateDriverPassengers('driver-2', 3);
+    assert.equal(api.loginDriver('driver-1', '1234'), true);
+    const before = [...data];
+    runCountAction(action, api, 'driver-2');
+    assert.deepEqual([...data], before);
+  }));
+}
+
+test('all count controls resume for the current driver after sign-in without rerender', () => withSession((api, data) => {
+  api.logoutDriver();
+  assert.equal(api.loginDriver('driver-2', '1234'), true);
+  api.fillDriverPassengers('driver-2');
+  const drivers = () => JSON.parse(data.get('kufr_malik_transit_drivers_v8')!);
+  assert.equal(drivers()[1].passengers, 7);
+  api.decrementPassengers('driver-2');
+  assert.equal(drivers()[1].passengers, 6);
+  api.updateDriverPassengers('driver-2', 2);
+  api.incrementPassengers('driver-2');
+  api.confirmDriverPassengers('driver-2');
+  assert.equal(drivers()[1].passengers, 3);
+  assert.ok(drivers()[1].seatCountUpdatedAt);
+  assert.equal(drivers()[0].passengers, 0);
+}));
