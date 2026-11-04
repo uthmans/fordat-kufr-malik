@@ -105,7 +105,7 @@ interface TransitContextType {
   clearTripLog: (driverId: string) => void;
   archiveCurrentTrip: (driverId: string) => void;
   deleteArchivedTrip: (tripId: string) => void;
-  clearAllTripHistory: () => void;
+  clearAllTripHistory: (tripIds?: readonly string[]) => void;
 
   // Admin Portal
   isAdminAuthenticated: boolean;
@@ -166,6 +166,8 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch {}
     return false;
   });
+  const adminAuthenticatedRef = useRef(isAdminAuthenticated);
+  adminAuthenticatedRef.current = isAdminAuthenticated;
 
   const [activeTab, setActiveTab] = useState<ActiveTab>(authenticatedDriverId ? 'driver' : 'villager');
 
@@ -270,6 +272,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setTripLogs([]);
     setTripHistory([]);
     setAuthenticatedDriverId(null);
+    adminAuthenticatedRef.current = false;
     setIsAdminAuthenticated(false);
     setSelectedDriverId(resetDrivers[0].id);
     setIsDetourSimulated(false);
@@ -390,6 +393,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Admin Login Logic (Master PIN: 9999)
   const adminLogin = (pin: string): boolean => {
     if (pin.trim() === MASTER_ADMIN_PIN) {
+      adminAuthenticatedRef.current = true;
       setIsAdminAuthenticated(true);
       try { localStorage.setItem(ADMIN_AUTH_KEY, 'true'); } catch {}
       if (typeof window !== 'undefined' && navigator.vibrate) {
@@ -401,6 +405,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const adminLogout = () => {
+    adminAuthenticatedRef.current = false;
     setIsAdminAuthenticated(false);
     try { localStorage.removeItem(ADMIN_AUTH_KEY); } catch {}
   };
@@ -881,12 +886,15 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteArchivedTrip = (tripId: string) => {
-    const updated = tripHistory.filter((t) => t.id !== tripId);
-    saveTripHistory(updated);
+    clearAllTripHistory([tripId]);
   };
 
-  const clearAllTripHistory = () => {
-    saveTripHistory([]);
+  const clearAllTripHistory = (tripIds?: readonly string[]) => {
+    if (!adminAuthenticatedRef.current) return;
+    const latest = tripHistoryRef.current;
+    const selected = new Set(tripIds ?? latest.map(trip => trip.id));
+    const updated = latest.filter(trip => !selected.has(trip.id));
+    if (updated.length !== latest.length) saveTripHistory(updated);
   };
 
   const resetAll = () => {
