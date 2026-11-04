@@ -4,6 +4,7 @@ import { Driver } from '../types';
 import { PhoneDisplay } from './PhoneDisplay';
 import { isValidDriverPin } from '../utils/driverPin';
 import { changedProfileFields } from '../utils/driverProfile';
+import { ArchiveDeleteConfirmation } from './ArchiveDeleteConfirmation';
 import {
   ShieldCheck,
   Lock,
@@ -46,6 +47,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
   const [pinError, setPinError] = useState(false);
   const [activeTab, setActiveTab] = useState<'drivers' | 'archives'>('drivers');
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
+  const [archiveDeletion, setArchiveDeletion] = useState<{ ids: string[]; all: boolean } | null>(null);
 
   // Form edit states
   const [editNameAr, setEditNameAr] = useState('');
@@ -322,7 +324,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
             {tripHistory.length > 0 && (
               <button
                 type="button"
-                onClick={clearAllTripHistory}
+                onClick={() => setArchiveDeletion({ ids: tripHistory.map(trip => trip.id), all: true })}
                 className="text-xs text-rose-600 font-bold hover:underline flex items-center gap-1"
               >
                 <Trash2 size={12} />
@@ -361,7 +363,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
                       </span>
                       <button
                         type="button"
-                        onClick={() => deleteArchivedTrip(trip.id)}
+                        onClick={() => setArchiveDeletion({ ids: [trip.id], all: false })}
                         className="text-slate-400 hover:text-rose-600 transition-colors"
                         title={isAr ? 'حذف هذه الرحلة' : 'Delete Trip'}
                       >
@@ -386,6 +388,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
           )}
         </div>
       )}
+
+      {archiveDeletion && <ArchiveDeleteConfirmation count={archiveDeletion.ids.length} isAr={isAr}
+        onCancel={() => setArchiveDeletion(null)}
+        onConfirm={() => {
+          if (archiveDeletion.all) clearAllTripHistory(archiveDeletion.ids);
+          else deleteArchivedTrip(archiveDeletion.ids[0]);
+          setArchiveDeletion(null);
+        }} />}
 
       {/* Edit Driver Sub-Modal */}
       {editingDriver && (

@@ -169,3 +169,9 @@ handlers captured before logout or a driver switch cannot accept the previous
 driver's requests. Session changes stop real GPS and simulation synchronously;
 queued simulation ticks are invalidated rather than reassigned to the next
 driver. These remain browser-local profile controls, not server authentication.
+
+Archive deletion requires an explicit Arabic/English confirmation. Clear All
+captures the visible trip IDs when that dialog opens and removes only those IDs
+from the latest archive state, preserving new arrivals. Repeated or unknown-ID
+deletions do nothing; stale handlers after admin logout are rejected. Current
+bookings, active logs and passenger counts are unaffected by archive deletion.
