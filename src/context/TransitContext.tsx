@@ -14,6 +14,7 @@ import { isSeatRequest, isTripLog, isArchivedTrip, readStoredCollection, restore
 import { archiveTrip } from '../utils/tripArchive';
 import { declineBooking } from '../utils/bookingDecline';
 import { persistTransitReset } from '../utils/transitReset';
+import { changePassengerCount, PassengerChange } from '../utils/passengerCount';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
 const REQUESTS_KEY = 'kufr_malik_transit_requests_v6';
@@ -63,6 +64,7 @@ interface TransitContextType {
   incrementPassengers: (id: string) => void;
   decrementPassengers: (id: string) => void;
   updateDriverPassengers: (id: string, count: number) => void;
+  confirmDriverPassengers: (id: string) => void;
   updateDriverNote: (id: string, noteEn: string, noteAr: string) => void;
   resetAll: () => void;
   resetStatus: 'saved' | 'memory' | null;
@@ -748,38 +750,24 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [isSimulatingGPS, simulationDirection, isDetourSimulated, selectedDriverId, updateDriverLocation]);
 
   // Passenger counter
-  const updateDriverPassengers = (id: string, count: number) => {
-    const driver = drivers.find((candidate) => candidate.id === id);
-    if (!driver || !Number.isInteger(count) || !Number.isInteger(driver.maxCapacity) || driver.maxCapacity < 1) return;
-    const clamped = Math.max(0, Math.min(driver.maxCapacity, count));
+  const commitPassengerChange = (id: string, change: PassengerChange) => {
+    const latest = bookingStateRef.current.drivers;
+    const updated = changePassengerCount(latest, id, change, Date.now());
+    if (!updated || updated === latest) return;
+    saveDrivers(updated);
     if (typeof window !== 'undefined' && navigator.vibrate) {
       try { navigator.vibrate(20); } catch {}
     }
-    const updated = drivers.map((d) =>
-      d.id === id
-        ? {
-            ...d,
-            passengers: clamped,
-            seatCountUpdatedAt: Date.now(),
-            lastActiveTime: Date.now(),
-            autoPausedForInactivity: false,
-            lastUpdated: new Date().toISOString()
-          }
-        : d
-    );
-    saveDrivers(updated);
   };
 
+  const updateDriverPassengers = (id: string, count: number) => commitPassengerChange(id, { kind: 'set', count });
+  const confirmDriverPassengers = (id: string) => commitPassengerChange(id, { kind: 'confirm' });
   const incrementPassengers = (id: string) => {
-    const driver = drivers.find((d) => d.id === id);
-    if (!driver) return;
-    updateDriverPassengers(id, driver.passengers + 1);
+    commitPassengerChange(id, { kind: 'adjust', delta: 1 });
   };
 
   const decrementPassengers = (id: string) => {
-    const driver = drivers.find((d) => d.id === id);
-    if (!driver) return;
-    updateDriverPassengers(id, driver.passengers - 1);
+    commitPassengerChange(id, { kind: 'adjust', delta: -1 });
   };
 
   const updateDriverNote = (id: string, noteEn: string, noteAr: string) => {
@@ -952,6 +940,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
         incrementPassengers,
         decrementPassengers,
         updateDriverPassengers,
+        confirmDriverPassengers,
         updateDriverNote,
         resetAll,
         resetStatus,
