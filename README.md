@@ -101,3 +101,9 @@ so an inactivity pause or duty change cannot be bypassed by a stale enabled
 button. A blocked acceptance changes no passenger count, request status or trip
 log and never resumes duty automatically. Arabic and English request cards show
 the reason, while existing seat-capacity checks still apply after resuming.
+
+Decline uses the latest request snapshot and requires the signed-in driver to own
+a still-pending request. A late decline cannot overwrite an accepted request or
+its confirmed log; repeated declines do nothing. Other requests, passenger counts
+and trip logs are unchanged. Drivers may decline while off duty, and a rejected
+action explains that the request may already have been handled.
