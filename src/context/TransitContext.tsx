@@ -328,25 +328,22 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Auto-activate driver on morning login
   const activateDriverOnLogin = useCallback((driverId: string) => {
-    setDrivers((prev) => {
-      const target = prev.find((d) => d.id === driverId);
-      if (!target) return prev;
-      const updated = prev.map((d) =>
-        d.id === driverId
-          ? {
-              ...d,
-              isOnDuty: true,
-              autoPausedForInactivity: false,
-              lastActiveTime: Date.now(),
-              lastUpdated: new Date().toISOString()
-            }
-          : d
-      );
-      try { localStorage.setItem(DRIVERS_KEY, JSON.stringify(updated)); } catch {}
-      broadcastSync('UPDATE_DRIVERS', updated);
-      return updated;
-    });
-  }, []);
+    const prev = bookingStateRef.current.drivers;
+    const target = prev.find((d) => d.id === driverId);
+    if (!target) return;
+    const updated = prev.map((d) =>
+      d.id === driverId
+        ? {
+            ...d,
+            isOnDuty: true,
+            autoPausedForInactivity: false,
+            lastActiveTime: Date.now(),
+            lastUpdated: new Date().toISOString()
+          }
+        : d
+    );
+    saveDrivers(updated);
+  }, [saveDrivers]);
 
   // Driver Authentication Logic
   const loginDriver = (driverId: string, pin: string): boolean => {
@@ -403,7 +400,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // On Duty / Off Duty Toggle
   const toggleDriverDuty = (driverId: string) => {
-    const updated = drivers.map((d) => {
+    const updated = bookingStateRef.current.drivers.map((d) => {
       if (d.id === driverId) {
         return {
           ...d,
@@ -427,7 +424,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const setDriverPrayerShift = (driverId: string, shift: PrayerShiftPreset) => {
     const config = PRAYER_SHIFT_CONFIGS[shift];
     const isLate = shift === 'after_maghrib' || shift === 'after_isha';
-    const updated = drivers.map((d) => {
+    const updated = bookingStateRef.current.drivers.map((d) => {
       if (d.id === driverId) {
         return {
           ...d,
@@ -451,7 +448,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const setDepartureCountdown = (driverId: string, countdown: DepartureCountdown) => {
     const now = Date.now();
     setDataNow(now);
-    const updated = drivers.map((d) => {
+    const updated = bookingStateRef.current.drivers.map((d) => {
       if (d.id === driverId && (d.isOnDuty || countdown === null)) {
         return {
           ...d,
@@ -471,7 +468,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Resume Duty when Auto-Paused for Inactivity
   const resumeDutyFromInactivity = (driverId: string) => {
-    const updated = drivers.map((d) => {
+    const updated = bookingStateRef.current.drivers.map((d) => {
       if (d.id === driverId) {
         return {
           ...d,
@@ -491,7 +488,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Late Shift Indicator Toggle (legacy fallback)
   const toggleDriverLateShift = (driverId: string) => {
-    const updated: Driver[] = drivers.map((d): Driver => {
+    const updated: Driver[] = bookingStateRef.current.drivers.map((d): Driver => {
       if (d.id === driverId) {
         const nextState = !d.isLateShift;
         const newShift: PrayerShiftPreset = nextState ? 'after_maghrib' : 'regular_day';
@@ -518,16 +515,9 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     const checkInactivity = () => {
       const now = Date.now();
-      setDrivers((prev) => {
-        const updated = pauseInactiveDrivers(prev, now);
-        if (updated !== prev) {
-          bookingStateRef.current.drivers = updated;
-          try { localStorage.setItem(DRIVERS_KEY, JSON.stringify(updated)); } catch {}
-          broadcastSync('UPDATE_DRIVERS', updated);
-          return updated;
-        }
-        return prev;
-      });
+      const prev = bookingStateRef.current.drivers;
+      const updated = pauseInactiveDrivers(prev, now);
+      if (updated !== prev) saveDrivers(updated);
     };
     const checkWhenVisible = () => {
       if (document.visibilityState === 'visible') checkInactivity();
@@ -562,56 +552,53 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Dynamic GPS Proximity text updater
   const updateDriverLocation = useCallback((driverId: string, lat: number, lng: number, accuracy?: number, liveDriverId?: string, sampleTimestamp = Date.now()) => {
-    setDrivers((prevDrivers) => {
-      if (liveDriverId && authenticatedDriverIdRef.current !== liveDriverId) return prevDrivers;
-      const target = prevDrivers.find((d) => d.id === driverId);
-      if (!target) return prevDrivers;
+    const prevDrivers = bookingStateRef.current.drivers;
+    if (liveDriverId && authenticatedDriverIdRef.current !== liveDriverId) return;
+    const target = prevDrivers.find((d) => d.id === driverId);
+    if (!target) return;
 
-      if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return prevDrivers;
-      const gpsMode: Driver['gpsMode'] = liveDriverId ? 'live' : 'simulation';
-      if (!Number.isFinite(sampleTimestamp) || sampleTimestamp <= 0 ||
-          (target.gpsMode === gpsMode && sampleTimestamp <= target.currentLocation?.timestamp)) return prevDrivers;
-      const location = { lat, lng, accuracy: typeof accuracy === 'number' && Number.isFinite(accuracy) && accuracy >= 0 ? accuracy : 10, timestamp: sampleTimestamp };
-      const movement = inferRouteDirection(location, target.gpsMode === gpsMode ? target.directionAnchor : undefined);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
+    const gpsMode: Driver['gpsMode'] = liveDriverId ? 'live' : 'simulation';
+    if (!Number.isFinite(sampleTimestamp) || sampleTimestamp <= 0 ||
+        (target.gpsMode === gpsMode && sampleTimestamp <= target.currentLocation?.timestamp)) return;
+    const location = { lat, lng, accuracy: typeof accuracy === 'number' && Number.isFinite(accuracy) && accuracy >= 0 ? accuracy : 10, timestamp: sampleTimestamp };
+    const movement = inferRouteDirection(location, target.gpsMode === gpsMode ? target.directionAnchor : undefined);
 
-      const analysis = evaluateGPSLocation(
-        lat,
-        lng,
-        movement.bearing,
-        target.nameEn,
-        target.nameAr,
-        target.status
-      );
+    const analysis = evaluateGPSLocation(
+      lat,
+      lng,
+      movement.bearing,
+      target.nameEn,
+      target.nameAr,
+      target.status
+    );
 
-      const updated = prevDrivers.map((d) => {
-        if (d.id === driverId) {
-          return {
-            ...d,
-            status: analysis.status,
-            ...recordDutyMovement(d, location, gpsMode, Date.now()),
-            currentLocation: location,
-            directionAnchor: movement.anchor,
-            gpsMode,
-            detectedNodeId: analysis.detectedNode.id,
-            isDetour: analysis.isDetour,
-            detourNameEn: analysis.detourNameEn,
-            detourNameAr: analysis.detourNameAr,
-            currentStopEn: analysis.customStopEn || analysis.detectedNode.nameEn,
-            currentStopAr: analysis.customStopAr || analysis.detectedNode.nameAr,
-            proximityStatusEn: analysis.proximityTextEn,
-            proximityStatusAr: analysis.proximityTextAr,
-            bearing: analysis.bearing,
-            lastUpdated: new Date().toISOString()
-          };
-        }
-        return d;
-      });
-
-      try { localStorage.setItem(DRIVERS_KEY, JSON.stringify(updated)); } catch {}
-      broadcastSync('UPDATE_DRIVERS', updated);
-      return updated;
+    const updated = prevDrivers.map((d) => {
+      if (d.id === driverId) {
+        return {
+          ...d,
+          status: analysis.status,
+          ...recordDutyMovement(d, location, gpsMode, Date.now()),
+          currentLocation: location,
+          directionAnchor: movement.anchor,
+          gpsMode,
+          detectedNodeId: analysis.detectedNode.id,
+          isDetour: analysis.isDetour,
+          detourNameEn: analysis.detourNameEn,
+          detourNameAr: analysis.detourNameAr,
+          currentStopEn: analysis.customStopEn || analysis.detectedNode.nameEn,
+          currentStopAr: analysis.customStopAr || analysis.detectedNode.nameAr,
+          proximityStatusEn: analysis.proximityTextEn,
+          proximityStatusAr: analysis.proximityTextAr,
+          bearing: analysis.bearing,
+          lastUpdated: new Date().toISOString()
+        };
+      }
+      return d;
     });
-  }, []);
+
+    saveDrivers(updated);
+  }, [saveDrivers]);
 
   // HTML5 Geolocation Tracking
   const startRealGPSTracking = () => {
@@ -765,14 +752,13 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const updateDriverNote = (id: string, noteEn: string, noteAr: string) => {
-    const updated = drivers.map((d) =>
+    const updated = bookingStateRef.current.drivers.map((d) =>
       d.id === id
         ? {
             ...d,
             departureNoteEn: noteEn,
             departureNoteAr: noteAr,
             lastActiveTime: Date.now(),
-            autoPausedForInactivity: false,
             lastUpdated: new Date().toISOString()
           }
         : d

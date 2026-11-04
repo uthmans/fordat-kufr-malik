@@ -140,3 +140,11 @@ changes. Profile writes cannot replace operational fields such as IDs or GPS.
 Invalid names, WhatsApp numbers, PINs or capacities reject the save; capacity
 cannot be reduced below current occupancy. Failed saves keep the form open and
 show an error rather than reporting success. A save with no changes writes nothing.
+
+Duty toggles, prayer/late-shift controls, departure announcements, duty resume and
+driver notes also use the latest driver snapshot. Consecutive actions retain
+each other's updates, newer profile edits and just-accepted bookings. Editing a
+note does not clear an inactivity pause; explicit duty resume is still required.
+GPS fixes, login activation and inactivity checks commit to the same current
+snapshot immediately, so later controls do not wait for React to rerender before
+seeing those updates.
