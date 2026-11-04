@@ -10,6 +10,7 @@ import { pauseInactiveDrivers, recordDutyMovement } from '../utils/dutyActivity'
 import { isDemoRequest, isDemoLog, isDemoArchive } from '../utils/dataFreshness';
 import { AUTH_DRIVER_KEY, VILLAGER_NAME_KEY, normalizeVillagerName, readDriverSession, readVillagerName, storeIdentity } from '../utils/identityStorage';
 import { isValidDriverPin, matchesDriverPin } from '../utils/driverPin';
+import { isSeatRequest, isTripLog, isArchivedTrip, readStoredCollection, restoreDrivers, readSyncMessage } from '../utils/transitData';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
 const REQUESTS_KEY = 'kufr_malik_transit_requests_v6';
@@ -132,21 +133,8 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, []);
   const [drivers, setDrivers] = useState<Driver[]>(() => {
-    try {
-      const saved = localStorage.getItem(DRIVERS_KEY) || localStorage.getItem('kufr_malik_transit_drivers_v7');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length >= 8 && parsed[0].nameEn) {
-          return parsed.map((d: Driver) => ({
-            ...d,
-            prayerShift: d.prayerShift || (d.isLateShift ? 'after_maghrib' : 'regular_day'),
-            lastActiveTime: Number.isFinite(d.lastActiveTime) ? d.lastActiveTime : Date.parse(d.lastUpdated),
-            autoPausedForInactivity: d.autoPausedForInactivity || false
-          }));
-        }
-      }
-    } catch {}
-    return INITIAL_DRIVERS;
+    const saved = restoreDrivers();
+    return saved.length ? saved : INITIAL_DRIVERS;
   });
 
 
@@ -191,31 +179,13 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   });
 
   // Sample initial requests
-  const [seatRequests, setSeatRequests] = useState<SeatRequest[]>(() => {
-    try {
-      const saved = localStorage.getItem(REQUESTS_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return [];
-  });
+  const [seatRequests, setSeatRequests] = useState<SeatRequest[]>(() => readStoredCollection(REQUESTS_KEY, isSeatRequest));
 
   // Active Trip Log (passengers for current round)
-  const [tripLogs, setTripLogs] = useState<TripLogEntry[]>(() => {
-    try {
-      const saved = localStorage.getItem(TRIP_LOGS_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return [];
-  });
+  const [tripLogs, setTripLogs] = useState<TripLogEntry[]>(() => readStoredCollection(TRIP_LOGS_KEY, isTripLog));
 
   // Archived Trips History
-  const [tripHistory, setTripHistory] = useState<ArchivedTrip[]>(() => {
-    try {
-      const saved = localStorage.getItem(TRIP_HISTORY_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return [];
-  });
+  const [tripHistory, setTripHistory] = useState<ArchivedTrip[]>(() => readStoredCollection(TRIP_HISTORY_KEY, isArchivedTrip));
 
   // Read the latest accepted changes even before React renders a second tap.
   const bookingStateRef = useRef<BookingState>({ drivers, requests: seatRequests, logs: tripLogs });
@@ -273,28 +243,30 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Multi-tab listener
   useEffect(() => {
     if (typeof window === 'undefined' || !('BroadcastChannel' in window)) return;
-    const channel = new BroadcastChannel('kufr_malik_transit_hub_v6');
+    // Some browsers expose the API while denying channel creation.
+    let channel: BroadcastChannel;
+    try { channel = new BroadcastChannel('kufr_malik_transit_hub_v6'); } catch { return; }
 
     channel.onmessage = (event) => {
-      const { type, payload } = event.data || {};
-      if (type === 'UPDATE_DRIVERS' && Array.isArray(payload)) {
+      const message = readSyncMessage(event.data);
+      if (!message) return;
+      if (message.type === 'UPDATE_DRIVERS') {
+        const payload = message.payload;
         bookingStateRef.current.drivers = payload;
         setDrivers(payload);
-      } else if (type === 'UPDATE_REQUESTS' && Array.isArray(payload)) {
+      } else if (message.type === 'UPDATE_REQUESTS') {
+        const payload = message.payload;
         bookingStateRef.current.requests = payload;
         setSeatRequests(payload);
-      } else if (type === 'UPDATE_TRIP_LOGS' && Array.isArray(payload)) {
+      } else if (message.type === 'UPDATE_TRIP_LOGS') {
+        const payload = message.payload;
         bookingStateRef.current.logs = payload;
         setTripLogs(payload);
-      } else if (type === 'UPDATE_TRIP_HISTORY' && Array.isArray(payload)) {
-        setTripHistory(payload);
-      } else if (type === 'GPS_SIM_PROGRESS') {
-        if (typeof payload?.progress === 'number') {
-          setSimulationProgressState(payload.progress);
-        }
-        if (typeof payload?.isDetour === 'boolean') {
-          setIsDetourSimulated(payload.isDetour);
-        }
+      } else if (message.type === 'UPDATE_TRIP_HISTORY') {
+        setTripHistory(message.payload);
+      } else if (message.type === 'GPS_SIM_PROGRESS') {
+        setSimulationProgressState(message.payload.progress);
+        setIsDetourSimulated(message.payload.isDetour);
       }
     };
 
