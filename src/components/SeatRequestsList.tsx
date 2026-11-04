@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { bookingAcceptanceError } from '../utils/bookingAcceptance';
+import { bookingAcceptanceError, bookingAcceptanceLabel } from '../utils/bookingAcceptance';
 import { isDemoRequest } from '../utils/dataFreshness';
 import { useTransit } from '../context/TransitContext';
 import { SeatRequest } from '../types';
@@ -57,7 +57,7 @@ export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) 
         )}
       </div>
 
-      {acceptError && <p role="alert" className="text-xs font-bold text-rose-600 dark:text-rose-400">{isAr ? 'تعذر قبول الطلب. تحقق من المقاعد المتاحة وحالة الطلب.' : 'Could not accept this request. Check available seats and request status.'}</p>}
+      {acceptError && <p role="alert" className="text-xs font-bold text-rose-600 dark:text-rose-400">{isAr ? 'تعذر قبول الطلب. تحقق من حالة الدوام والمقاعد المتاحة وحالة الطلب.' : 'Could not accept this request. Check duty status, available seats and request status.'}</p>}
 
       {/* Pending Requests List */}
       {pendingRequests.length === 0 ? (
@@ -70,7 +70,9 @@ export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) 
         </div>
       ) : (
         <div className="space-y-3">
-          {pendingRequests.map((req) => (
+          {pendingRequests.map((req) => {
+            const error = bookingAcceptanceError(req, currentDriver);
+            return (
             <div
               key={req.id}
               className="p-3.5 rounded-2xl bg-amber-500/5 dark:bg-amber-950/20 border-2 border-amber-500/40 space-y-3 shadow-xs animate-in slide-in-from-top-2 duration-150"
@@ -107,17 +109,15 @@ export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) 
                 <button
                   type="button"
                   onClick={() => setAcceptError(acceptSeatRequest(req.id) ? null : req.id)}
-                  disabled={!!bookingAcceptanceError(req, currentDriver)}
+                  disabled={!!error}
                   className={`min-h-[48px] rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-sm transition-all tap-highlight ${
-                    bookingAcceptanceError(req, currentDriver)
+                    error
                       ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed'
                       : 'bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white ring-2 ring-emerald-500'
                   }`}
                 >
                   <Check size={18} strokeWidth={3} />
-                  <span>{bookingAcceptanceError(req, currentDriver)
-                    ? (isAr ? 'لا توجد مقاعد كافية' : 'Not enough seats')
-                    : (isAr ? 'قبول (+ حجز)' : 'Accept (+ Add)')}</span>
+                  <span>{bookingAcceptanceLabel(error, isAr)}</span>
                 </button>
 
                 <button
@@ -130,7 +130,7 @@ export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) 
                 </button>
               </div>
             </div>
-          ))}
+          ); })}
         </div>
       )}
     </div>

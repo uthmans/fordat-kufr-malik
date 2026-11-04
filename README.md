@@ -89,3 +89,12 @@ hard-coded seven-seat cap. If there are no named bookings (such as station
 boarding), it records the current passenger count instead. This preserves the
 recorded total, including trips with passenger turnover; it does not estimate
 unrecorded boardings. Demo entries follow the existing preview setting.
+
+## Off-duty booking requests
+
+Pending requests stay available while a driver is off duty, but acceptance is
+blocked until duty is resumed. The same check runs in the booking transition,
+so an inactivity pause or duty change cannot be bypassed by a stale enabled
+button. A blocked acceptance changes no passenger count, request status or trip
+log and never resumes duty automatically. Arabic and English request cards show
+the reason, while existing seat-capacity checks still apply after resuming.

@@ -4,11 +4,19 @@ import { isDemoRequest, hasRecentSeatCount } from './dataFreshness';
 export function bookingAcceptanceError(request: SeatRequest | undefined, driver: Driver | undefined) {
   if (!request || request.status !== 'pending') return 'not_pending';
   if (!driver || driver.id !== request.driverId) return 'driver_unavailable';
+  if (!driver.isOnDuty || driver.autoPausedForInactivity) return 'off_duty';
   if (!Number.isInteger(request.seatCount) || request.seatCount < 1) return 'invalid_seat_count';
   if (!Number.isInteger(driver.maxCapacity) || driver.maxCapacity < 1 ||
       !Number.isInteger(driver.passengers) || driver.passengers < 0) return 'invalid_capacity';
   if (driver.passengers + request.seatCount > driver.maxCapacity) return 'insufficient_seats';
   return null;
+}
+
+export function bookingAcceptanceLabel(error: ReturnType<typeof bookingAcceptanceError>, isAr: boolean) {
+  if (error === 'off_duty') return isAr ? 'فعّل الدوام لقبول الطلب' : 'Go on duty to accept';
+  if (error === 'insufficient_seats') return isAr ? 'لا توجد مقاعد كافية' : 'Not enough seats';
+  if (error) return isAr ? 'الطلب غير متاح للقبول' : 'Request unavailable';
+  return isAr ? 'قبول (+ حجز)' : 'Accept (+ Add)';
 }
 
 export interface BookingState {

@@ -72,3 +72,33 @@ test('full and malformed vehicles cannot accept bookings', () => {
     assert.equal(acceptBooking(fixture(passengers, 1, capacity), 'request-1', 'driver-1', 100), null);
   }
 });
+
+test('off-duty drivers cannot change booking, count or logs even when seats are available', () => {
+  const state = fixture(0, 2);
+  state.drivers[0].isOnDuty = false;
+  const original = structuredClone(state);
+  assert.equal(bookingAcceptanceError(state.requests[0], state.drivers[0]), 'off_duty');
+  assert.equal(acceptBooking(state, 'request-1', 'driver-1', 100), null);
+  assert.deepEqual(state, original);
+});
+
+test('an inactivity pause blocks a stale accept action without resuming duty', () => {
+  const state = fixture(0, 2);
+  state.drivers[0].autoPausedForInactivity = true;
+  const original = structuredClone(state);
+  assert.equal(acceptBooking(state, 'request-1', 'driver-1', 100), null);
+  assert.deepEqual(state, original);
+});
+
+test('resuming duty allows the same pending request with normal capacity checks', () => {
+  const state = fixture(0, 2);
+  state.drivers[0].isOnDuty = false;
+  assert.equal(acceptBooking(state, 'request-1', 'driver-1', 100), null);
+  state.drivers[0].isOnDuty = true;
+  state.drivers[0].autoPausedForInactivity = false;
+  const next = acceptBooking(state, 'request-1', 'driver-1', 101)!;
+  assert.equal(next.drivers[0].passengers, 2);
+  assert.equal(next.requests[0].status, 'accepted');
+  assert.equal(next.logs.length, 1);
+  assert.equal(acceptBooking(next, 'request-1', 'driver-1', 102), null);
+});
