@@ -185,7 +185,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
               </span>
             </h2>
             <p className="text-xs text-slate-500">
-              {isAr ? 'التحكم بالسائقين الثمانية وتعديل الأرقام والرموز' : 'Manage roster, shift flags & credentials'}
+              {isAr ? 'إدارة بيانات السائقين وأرشيف الرحلات' : 'Manage driver profiles and trip archives'}
             </p>
           </div>
         </div>

@@ -76,8 +76,11 @@ demo controls immediately.
 repository at `../outputs/private-transit/admin-access.json`; it never rotates an
 existing code. The private admin migration and SQL rollback tests are in
 `supabase/migrations/20261105205913_private_admin_sessions.sql` and
-`supabase/tests/private_admin_sessions.sql`. Apply and verify the schema before
-activating the owner code or deploying the new Edge Function/client together.
+`supabase/tests/private_admin_sessions.sql`. The schema is applied, its SQL role
+isolation/lockout tests passed, and the private owner code and updated Edge Function
+are activated. HTTP checks verified administrator login/restoration/logout while
+driver login remained working. The browser check verified protected roster access,
+no PIN displays, owner-only demo controls and their removal on admin logout.
 
 Phone-feedback releases are intentionally separated: (1) admin/privacy and private
 demo tools; (2) one-button live GPS sharing with a real-fix wait; (3) responsive

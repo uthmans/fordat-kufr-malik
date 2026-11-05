@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { useTransit } from '../context/TransitContext';
 import { Driver } from '../types';
 import { PhoneDisplay } from './PhoneDisplay';
-import { isValidDriverPin } from '../utils/driverPin';
 import { changedProfileFields } from '../utils/driverProfile';
-import { User, KeyRound, Phone, Archive, X, Check, Clock, Calendar, Users } from 'lucide-react';
+import { User, Phone, Archive, X, Check, Clock, Calendar, Users } from 'lucide-react';
 
 interface DriverProfileModalProps {
   driver: Driver;

@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useTransit } from '../context/TransitContext';
 import { PhoneDisplay } from './PhoneDisplay';
-import { KeyRound, AlertCircle, Shield } from 'lucide-react';
+import { KeyRound, AlertCircle } from 'lucide-react';
 
 export const DriverLoginView: React.FC = () => {
   const { drivers, shared, language } = useTransit();
