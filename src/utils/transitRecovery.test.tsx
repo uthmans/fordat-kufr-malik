@@ -41,7 +41,7 @@ test('passenger, driver and admin screens render with corrupt saved collections'
       kufr_malik_transit_history_v6: broken
     });
     assert.ok(html.includes('علاء حمايل'));
-    assert.ok(html.includes('تسجيل دخول السائقين'));
+    assert.ok(html.includes('جارٍ استعادة دخولك'));
     assert.ok(html.includes('بوابة إدارة خط كفر مالك'));
   }
 });

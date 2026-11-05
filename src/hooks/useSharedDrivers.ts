@@ -2,32 +2,38 @@ import { useEffect, useRef, useState } from 'react';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { sharedBackend } from '../config/sharedBackend';
 import type { Driver } from '../types';
-import { mergeSharedDriverRows, readSharedDriverRow, type PublicDriver, type SharedDriverRow } from '../utils/sharedDriver';
+import { mergeSharedDriverRows, readSharedDriverRow, type SharedDriverRow } from '../utils/sharedDriver';
 import { SharedPublisher, publishableDriver } from '../utils/sharedPublisher';
+import { DriverCodeSession, DRIVER_CODE_SESSION_KEY } from '../utils/driverCodeSession';
 
 let client: SupabaseClient | undefined;
 export function sharedClient() {
   return client ??= createClient(sharedBackend.url, sharedBackend.publishableKey, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false,
-      storageKey: 'kufr_malik_cloud_session_v1' }
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
   });
 }
 
 export function useSharedDrivers(drivers: Driver[], localDriverId: string | null,
-  hydrateOwner: (row: SharedDriverRow) => Driver | undefined) {
+  hydrateOwner: (row: SharedDriverRow) => Driver | undefined,
+  onIdentity: (id: string | null, freshLogin: boolean) => void) {
   const [rows, setRows] = useState<SharedDriverRow[]>([]);
   const [status, setStatus] = useState<'connecting' | 'connected' | 'offline' | 'error'>('connecting');
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [hasAccount, setHasAccount] = useState(false);
+  const [restoring, setRestoring] = useState(true);
+  const [sessionPersisted, setSessionPersisted] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [publishError, setPublishError] = useState(false);
   const [lastPublished, setLastPublished] = useState<string | null>(null);
-  const latest = useRef({ drivers, localDriverId, hydrateOwner });
-  latest.current = { drivers, localDriverId, hydrateOwner };
+  const latest = useRef({ drivers, localDriverId, hydrateOwner, onIdentity });
+  latest.current = { drivers, localDriverId, hydrateOwner, onIdentity };
+  const codeSession = useRef<DriverCodeSession | null>(null);
+  codeSession.current ??= new DriverCodeSession();
   const owner = useRef<string | null>(null);
   const alive = useRef(false);
   const authGeneration = useRef(0);
   const starting = useRef(false);
+  const signingIn = useRef(false);
   const publisher = useRef<SharedPublisher | null>(null);
 
   function acceptRows(incoming: unknown) {
@@ -48,7 +54,7 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
       reading = true;
       const generation = readerGeneration;
       try {
-        const { data, error } = await db.from('transit_driver_feed')
+        const { data, error } = await db.from('transit_driver_live')
           .select('driver_id,revision,received_at,snapshot');
         if (generation !== readerGeneration || !alive.current) return;
         if (error || !mergeSharedDriverRows([], data)) { setStatus('error'); return; }
@@ -67,7 +73,7 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
       setStatus('connecting');
       const generation = readerGeneration;
       channel = db.channel('public-driver-feed').on('postgres_changes', {
-        event: '*', schema: 'public', table: 'transit_driver_feed'
+        event: '*', schema: 'public', table: 'transit_driver_live'
       }, payload => {
         if (!alive.current || !visible() || generation !== readerGeneration) return;
         // Deletion/reassignment is an administrative action: fetch authoritative state.
@@ -81,45 +87,36 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
       });
       void refresh();
     };
-    publisher.current = new SharedPublisher(async (snapshot: PublicDriver, revision, signal) => {
+    publisher.current = new SharedPublisher(async (snapshot, revision, signal) => {
       if (!owner.current || owner.current !== snapshot.id || latest.current.localDriverId !== snapshot.id ||
           !navigator.onLine) throw new Error('Session changed or connection lost');
-      const query = revision === null
-        ? db.from('transit_driver_feed').insert({ driver_id: snapshot.id, snapshot })
-        : db.from('transit_driver_feed').update({ snapshot }).eq('driver_id', snapshot.id).eq('revision', revision);
-      const { data, error } = await query.select('driver_id,revision,received_at,snapshot').abortSignal(signal).maybeSingle();
-      const row = readSharedDriverRow(data);
-      if (error || !row) throw new Error('Shared update failed or another phone updated this driver');
-      return row;
+      return codeSession.current!.publish(snapshot, revision, signal);
     }, row => { if (alive.current) { acceptRows([row]); setLastPublished(row.received_at); } },
-    () => { if (alive.current) { setSharing(false); setPublishError(true); } });
+    () => { if (alive.current) {
+      setSharing(false); setPublishError(true);
+      if (!codeSession.current!.read()) {
+        owner.current = null; setOwnerId(null); setHasAccount(false); latest.current.onIdentity(null, false);
+      }
+    } });
 
     const checkOwner = async () => {
       const generation = ++authGeneration.current;
       publisher.current?.stop();
       owner.current = null;
-      setOwnerId(null); setSharing(false); setHasAccount(false);
+      setOwnerId(null); setSharing(false); setHasAccount(false); setRestoring(true);
       try {
-        const { data: { user }, error } = await db.auth.getUser();
+        const id = await codeSession.current!.restore();
         if (!alive.current || generation !== authGeneration.current) return;
-        if (error || !user) return;
-        setHasAccount(true);
-        const result = await db.from('transit_driver_owners').select('driver_id').eq('user_id', user.id).maybeSingle();
-        if (!alive.current || generation !== authGeneration.current) return;
-        if (!result.error && typeof result.data?.driver_id === 'string') {
-          owner.current = result.data.driver_id;
-          setOwnerId(result.data.driver_id);
-        }
-      } catch { /* Sign-in is retryable; public reading remains available. */ }
+        owner.current = id; setOwnerId(id); setHasAccount(!!id);
+        setSessionPersisted(codeSession.current!.remembered);
+        latest.current.onIdentity(id, false);
+      } catch { /* Keep a saved token for an online retry, without authorizing it. */ }
+      finally { if (alive.current && generation === authGeneration.current) setRestoring(false); }
     };
-    // Never await Supabase calls inside its auth callback (the auth lock is held).
-    const { data: auth } = db.auth.onAuthStateChange(event => {
-      if (event === 'TOKEN_REFRESHED') return;
-      owner.current = null;
-      publisher.current?.stop();
-      setSharing(false);
-      queueMicrotask(() => { if (alive.current) void checkOwner(); });
-    });
+    const syncSession = (event: StorageEvent) => { if (event.key === DRIVER_CODE_SESSION_KEY || event.key === null) void checkOwner(); };
+    const retrySavedSession = () => {
+      if (visible() && !owner.current && !signingIn.current && codeSession.current!.read()) void checkOwner();
+    };
     void checkOwner();
     const timer = setInterval(() => { if (visible()) void refresh(); }, 300_000);
     const publishTimer = setInterval(() => {
@@ -129,13 +126,19 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
     document.addEventListener('visibilitychange', reconnect);
     window.addEventListener('online', reconnect);
     window.addEventListener('offline', reconnect);
+    window.addEventListener('storage', syncSession);
+    window.addEventListener('online', retrySavedSession);
+    document.addEventListener('visibilitychange', retrySavedSession);
     reconnect();
     return () => {
       alive.current = false; authGeneration.current++;
-      publisher.current?.stop(); stopChannel(); auth.subscription.unsubscribe();
+      publisher.current?.stop(); stopChannel();
       clearInterval(timer); clearInterval(publishTimer);
       document.removeEventListener('visibilitychange', reconnect);
       window.removeEventListener('online', reconnect); window.removeEventListener('offline', reconnect);
+      window.removeEventListener('storage', syncSession);
+      window.removeEventListener('online', retrySavedSession);
+      document.removeEventListener('visibilitychange', retrySavedSession);
     };
   }, []);
 
@@ -153,7 +156,7 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
     const generation = authGeneration.current;
     try {
       if (!id || id !== latest.current.localDriverId || !navigator.onLine) return false;
-      const { data, error } = await sharedClient().from('transit_driver_feed')
+      const { data, error } = await sharedClient().from('transit_driver_live')
         .select('driver_id,revision,received_at,snapshot').eq('driver_id', id).maybeSingle();
       if (!alive.current || generation !== authGeneration.current || owner.current !== id || latest.current.localDriverId !== id) return false;
       if (error) return false;
@@ -171,16 +174,26 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
     } finally { starting.current = false; }
   };
   const stopSharing = () => { publisher.current?.stop(); setSharing(false); };
-  const signIn = async (email: string, password: string) => {
-    const { error } = await sharedClient().auth.signInWithPassword({ email: email.trim(), password });
-    return !error;
+  const signInCode = async (driverId: string, code: string) => {
+    signingIn.current = true;
+    const generation = ++authGeneration.current;
+    stopSharing();
+    const result = await codeSession.current!.login(driverId, code);
+    signingIn.current = false;
+    if (!alive.current || generation !== authGeneration.current) return { ok: false as const, error: 'unavailable' as const };
+    if (result.ok) {
+      owner.current = result.driverId; setOwnerId(result.driverId); setHasAccount(true);
+      setSessionPersisted(codeSession.current!.remembered); setRestoring(false);
+      latest.current.onIdentity(result.driverId, true);
+    }
+    return result;
   };
   const signOut = async () => {
     stopSharing(); owner.current = null; setOwnerId(null); setHasAccount(false);
     authGeneration.current++;
-    const { error } = await sharedClient().auth.signOut({ scope: 'local' });
-    return !error;
+    latest.current.onIdentity(null, false);
+    return codeSession.current!.logout();
   };
-  return { rows, status, ownerId, hasAccount, sharing, publishError, lastPublished,
-    startSharing, stopSharing, signIn, signOut };
+  return { rows, status, ownerId, hasAccount, sharing, publishError, lastPublished, restoring, sessionPersisted,
+    startSharing, stopSharing, signInCode, signOut };
 }

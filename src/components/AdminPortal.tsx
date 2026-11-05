@@ -459,7 +459,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
 
               <div>
                 <label htmlFor="admin-driver-pin" className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  {isAr ? 'رمز الدخول (4 إلى 6 أرقام)' : 'Login PIN (4–6 digits)'}
+                  {isAr ? 'رمز محلي قديم (لا يغيّر رمز الدخول)' : 'Legacy local PIN (does not change access code)'}
                 </label>
                 <input
                   id="admin-driver-pin"

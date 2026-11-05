@@ -43,18 +43,24 @@ for that session. **Settings & GPS → App updates** also provides a manual chec
 and keeps a deferred update available. Updating does not clear saved identities
 or other local app data.
 
-## Local driver PINs
+## Driver access codes (no email or SMS)
 
-Driver login requires the selected profile's exact assigned PIN (4–6 digits,
-including leading zeroes). There is no default or master-PIN override and no
-PIN-free Quick Access button. Existing remembered sessions and Switch Driver
-continue to work. Profile and admin edits reject empty or malformed PINs instead
-of silently resetting them to a default.
+Drivers select their roster name and enter a private eight-digit access code.
+The server verifies a bcrypt hash and issues a random 256-bit session lasting
+up to 90 days. The browser remembers only the opaque session, never the code.
+Restoration checks the server before opening the dashboard. Switch Driver clears
+the local session immediately and revokes it server-side when reachable.
 
-This is a browser-only prototype: PINs and remembered IDs remain in client-side
-data, and the admin portal uses a public demo PIN. These controls are a local
-profile gate, not secure authentication or authorization. Shared production
-accounts need server-side identity, permission checks, and session management.
+Five incorrect attempts lock the selected driver's code for 15 minutes. A
+separate source limit allows at most 30 attempts in a 15-minute window. Existing
+valid sessions remain usable during a code lock, and code rotation/disablement
+invalidates sessions through a credential version check. No Supabase Auth user,
+email address, SMS or third-party login is required for a driver.
+
+Old 4–6-digit local PINs and the public admin demo PIN remain legacy local data;
+they cannot sign into the shared service or authorize cloud writes. Profile/admin
+forms label those fields accordingly. Admin controls for local logs and profiles
+remain local; server access-code administration is a separate trusted operation.
 
 ## Damaged browser data
 
@@ -197,12 +203,15 @@ booking requests, trip logs, credentials and archives. `sharedDriver.ts` defines
 the allowlisted public payload and validates server revisions, so a late response
 cannot replace a newer driver update. Unknown payload fields are rejected.
 
-`supabase/migrations/202611040001_shared_driver_feed.sql` is applied to the Free
+The migrations in `supabase/migrations` are applied to the Free
 Kufr Malik Transit project (`pwrsxqlunxntvqholhiz`) in the Salama organization.
-It provides a public read-only feed, private Auth-user-to-driver assignments,
-and database policies allowing an assigned driver to insert/update only their
-own snapshot. Clients cannot change assignments, delete rows, or set server
-revision/receipt columns. Simulated locations are rejected by the database.
+The current public feed is `transit_driver_live`. Its database grants allow
+browser roles to read only. An Edge Function checks private code sessions before
+calling a service-role-only SQL gateway, which validates ownership and revision
+inside the same transaction as the write. Browsers cannot read credential hashes,
+session hashes or login-limit records, call the privileged RPC, or write the feed
+directly. The former email-authenticated feed is retained unused for migration
+history; the frontend neither reads nor writes it. No existing records were deleted.
 Publishers must update using both driver ID and the last acknowledged revision;
 a zero-row update is a conflict and must trigger a refresh, not a blind overwrite.
 
@@ -212,9 +221,9 @@ belongs in the browser. Viewers subscribe only while the app is visible and
 online; reconnect refetches the database snapshot. A five-minute reconciliation
 also recovers missed events. Local/demo GPS is excluded from the public view.
 
-Settings & GPS > Connect driver phone verifies Supabase sign-in and the assigned
-driver ID. Local PINs, the demo admin PIN, and saved local driver IDs cannot
-authorize cloud publishing or change assignments. Starting sharing reloads
+Driver Mode verifies the selected driver's private code. Local PINs, the demo
+admin PIN, and saved local driver IDs cannot authorize cloud publishing.
+Settings & GPS > Share driver updates reloads
 existing shared counters/duty before publishing; this phone retains its GPS.
 GPS-only publications are limited to one per minute, while seat/duty changes
 publish on the next two-second flush. Unchanged snapshots are skipped. Simulation
@@ -227,25 +236,33 @@ permission to silently restart GPS publication. Stopping sharing leaves the last
 snapshot subject to existing freshness checks; it does not change duty. Driver
 logout, switching local profiles, reset and cloud sign-out stop the publisher.
 
-### First driver setup
+### Private code handover
 
-An administrator must first create a real driver account in the project's
-Supabase **Authentication > Users** dashboard. The account owner chooses their
-password; do not store it in the repository. Then add one approved assignment in
-`transit_driver_owners`, using that Auth user's UUID and the roster ID (`driver-1`
-through `driver-8`). Never grant clients permission to assign themselves.
+Eight unique access codes have been provisioned for the existing roster. Their
+plaintext handover copy is outside the repository at
+`../outputs/private-transit/driver-access-codes.json`; each driver should receive
+only their own code. Never commit that file. `scripts/prepare-driver-codes.ts`
+creates a handover file only when absent and does not rotate server credentials.
+`scripts/verify-driver-code-login.ts` tests deployed login, restoration and logout
+without printing credentials or uploading locations. To rotate a code, a trusted
+administrator must update its bcrypt hash and increment `version` atomically.
 
-On the driver's phone: open the matching local Driver Mode profile, enable Phone
-GPS, sign in to the approved shared account in Settings, then Start sharing.
-Check an independent viewer phone before expanding the trial. Real driver
-accounts and assignments have not been provisioned automatically.
+On the driver's phone: select the matching roster profile, enter its private
+code, enable Phone GPS, then Start sharing in Settings. Subsequent launches
+restore the remembered session. GPS sharing still requires an explicit start;
+restoring a login never silently starts location publication. Check an independent
+viewer phone before expanding the trial.
 
-Database regression SQL is in `supabase/tests/shared_driver_feed.sql`: it tests
-anonymous access, two-driver isolation, revision conflicts, private-field and
-simulation rejection, invalid coordinates, capacity checks and forbidden deletes.
-All test users/records are rolled back. Security/performance advisors returned no
-issues after applying the schema. Actual two-phone GPS behavior still needs a
-pilot with an approved real driver account.
+Current database regression SQL is `supabase/tests/driver_access_codes.sql` and
+must run on a clean test database before provisioning real codes. It verifies
+browser isolation, hashed secrets, lockouts, expiry, revocation, ownership,
+revision conflicts and off-duty location redaction; all fixtures roll back.
+The private tables intentionally have RLS enabled with no browser policies: the
+advisor's informational "RLS Enabled No Policy" finding reflects deny-by-default
+access. They are accessible only through the service-role gateway.
+All eight real codes passed deployed HTTP login/restore/revocation checks. Arabic
+mobile sign-in, remembered restoration after reload and Switch Driver were checked
+in the browser. Actual two-phone GPS behavior still needs a real driver trial.
 
 Keep local demo data, identities and archives on-device during the first stage.
 Do not automatically upload stored collections. Private shared bookings require
