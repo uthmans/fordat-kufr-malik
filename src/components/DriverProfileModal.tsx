@@ -178,7 +178,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
               {/* 4-Digit PIN */}
               <div>
                 <label htmlFor="driver-profile-pin" className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">
-                  {isAr ? 'رمز الدخول السري (4 إلى 6 أرقام)' : 'Login PIN (4–6 digits)'}
+                  {isAr ? 'رمز محلي قديم (لا يغيّر رمز الدخول)' : 'Legacy local PIN (does not change your access code)'}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -200,7 +200,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
                   />
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  {isAr ? 'استخدم من 4 إلى 6 أرقام. ستحتاج الرمز عند تغيير السائق أو تسجيل الدخول مجدداً.' : 'Use 4–6 digits. This PIN is required after switching drivers or signing in again.'}
+                  {isAr ? 'رمز الدخول الخاص المكوّن من 8 أرقام يديره المسؤول بشكل منفصل.' : 'Your private 8-digit access code is managed separately by the administrator.'}
                 </p>
               </div>
 

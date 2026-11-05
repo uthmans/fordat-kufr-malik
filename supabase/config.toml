@@ -1,0 +1,6 @@
+# This endpoint checks private driver codes and opaque server sessions itself.
+# The publishable key is not an identity, and browsers cannot call its SQL RPC.
+[functions.driver-session]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/driver-session/index.ts"

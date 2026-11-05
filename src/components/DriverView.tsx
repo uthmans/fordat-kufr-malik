@@ -48,7 +48,8 @@ export const DriverView: React.FC = () => {
     isTrackingRealGPS,
     isSimulatingGPS,
     language,
-    dataNow
+    dataNow,
+    shared
   } = useTransit();
 
   const isAr = language === 'ar';
@@ -58,7 +59,8 @@ export const DriverView: React.FC = () => {
   // must preserve manual pauses and the 45-minute inactivity timeout.
 
   // If driver is not authenticated yet, show clean PIN login view
-  if (!authenticatedDriverId || !currentDriver) {
+  if (shared.restoring) return <p role="status" className="p-4 text-sm">{isAr ? 'جارٍ استعادة دخولك…' : 'Restoring your sign-in…'}</p>;
+  if (!authenticatedDriverId || !currentDriver || shared.ownerId !== authenticatedDriverId) {
     return <DriverLoginView />;
   }
 

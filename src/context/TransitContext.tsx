@@ -258,7 +258,17 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     saveDrivers(latest.map(driver => driver.id === current.id ? hydrated : driver));
     return hydrated;
   };
-  const shared = useSharedDrivers(drivers, authenticatedDriverId, hydrateSharedOwner);
+  const restoreSharedIdentity = (id: string | null, freshLogin: boolean) => {
+    if (id !== authenticatedDriverIdRef.current) { stopRealGPSTracking(); stopSimulation(); }
+    authenticatedDriverIdRef.current = id;
+    setAuthenticatedDriverId(id);
+    storeIdentity(AUTH_DRIVER_KEY, id);
+    if (id) {
+      setSelectedDriverId(id); setActiveTab('driver');
+      if (freshLogin) activateDriverOnLogin(id);
+    }
+  };
+  const shared = useSharedDrivers(drivers, authenticatedDriverId, hydrateSharedOwner, restoreSharedIdentity);
 
   const saveRequests = useCallback((newRequests: SeatRequest[]) => {
     bookingStateRef.current.requests = newRequests;
@@ -283,6 +293,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const applyTransitReset = (resetDrivers: Driver[]) => {
     shared.stopSharing();
+    void shared.signOut();
     // Invalidate identity first so queued GPS callbacks cannot repopulate a driver.
     authenticatedDriverIdRef.current = null;
     stopRealGPSTracking();
@@ -405,6 +416,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const logoutDriver = () => {
     shared.stopSharing();
+    void shared.signOut();
     authenticatedDriverIdRef.current = null;
     // A shared phone must not keep updating the previous driver's GPS position.
     stopRealGPSTracking();
