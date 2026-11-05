@@ -30,7 +30,8 @@ export const GPSSimulatorPanel: React.FC = () => {
     toggleDetourSimulation,
     language,
     currentDriver,
-    authenticatedDriverId
+    authenticatedDriverId,
+    isAdminAuthenticated
   } = useTransit();
 
   const isAr = language === 'ar';
@@ -45,12 +46,12 @@ export const GPSSimulatorPanel: React.FC = () => {
           </div>
           <div>
             <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100">
-              {isAr ? 'محاكاة وإدارة نظام GPS المباشر' : 'GPS Tracking & Simulation Lab'}
+              {isAdminAuthenticated ? (isAr ? 'مختبر المحاكاة وGPS' : 'GPS Tracking & Simulation Lab') : (isAr ? 'موقع هاتف السائق' : 'Driver phone location')}
             </h3>
             <p className="text-[11px] text-slate-500">
-              {isAr
+              {isAdminAuthenticated ? (isAr
                 ? 'اختبار الحركة التلقائية بين كفر مالك ورام الله وكشف التحويلات'
-                : 'Test auto-location progression & detour detection across tabs'}
+                : 'Test auto-location progression & detour detection across tabs') : (isAr ? 'استخدم موقع الهاتف الحقيقي' : 'Use the phone’s real location')}
             </p>
           </div>
         </div>
@@ -89,7 +90,7 @@ export const GPSSimulatorPanel: React.FC = () => {
       )}
 
       {/* Simulation Controls Strip */}
-      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 space-y-4">
+      {isAdminAuthenticated && <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 space-y-4">
         {/* Play/Pause + Direction Controls */}
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <button
@@ -194,7 +195,7 @@ export const GPSSimulatorPanel: React.FC = () => {
             </span>
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   );
 };

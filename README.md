@@ -57,10 +57,31 @@ valid sessions remain usable during a code lock, and code rotation/disablement
 invalidates sessions through a credential version check. No Supabase Auth user,
 email address, SMS or third-party login is required for a driver.
 
-Old 4–6-digit local PINs and the public admin demo PIN remain legacy local data;
-they cannot sign into the shared service or authorize cloud writes. Profile/admin
-forms label those fields accordingly. Admin controls for local logs and profiles
-remain local; server access-code administration is a separate trusted operation.
+Legacy local PINs are no longer displayed or edited in the app. Private driver
+codes stay in their handover file and are never copied into the roster UI.
+The former public administrator PIN and saved local admin flag grant no access.
+Administration uses a separate server-verified 12-digit owner code and seven-day
+session. Driver sessions cannot authenticate as administrator, and an admin
+session cannot publish as a driver. Admin controls for local logs/profiles remain
+local; server access-code rotation remains a separate trusted operation.
+
+The owner opens `/#/admin` to sign in. That URL is an entry point, not a secret or
+an authorization check. No administration link is shown on driver login or normal
+Settings. Only a verified administrator sees demo controls, simulation tools and
+prototype reset. Saved demo preferences cannot activate these tools for normal
+users. Admin logout disables demo preview, stops simulation and invalidates stale
+demo controls immediately.
+
+`scripts/prepare-admin-code.ts` prepares a private owner handover file outside the
+repository at `../outputs/private-transit/admin-access.json`; it never rotates an
+existing code. The private admin migration and SQL rollback tests are in
+`supabase/migrations/20261105205913_private_admin_sessions.sql` and
+`supabase/tests/private_admin_sessions.sql`. Apply and verify the schema before
+activating the owner code or deploying the new Edge Function/client together.
+
+Phone-feedback releases are intentionally separated: (1) admin/privacy and private
+demo tools; (2) one-button live GPS sharing with a real-fix wait; (3) responsive
+departure announcements and passenger Call/WhatsApp actions.
 
 ## Damaged browser data
 

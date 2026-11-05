@@ -19,7 +19,6 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
   const [originalProfile] = useState(driver);
   const [nameEn, setNameEn] = useState(driver.nameEn);
   const [phone, setPhone] = useState(driver.phone);
-  const [pinCode, setPinCode] = useState(driver.pinCode);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'history'>('profile');
@@ -29,13 +28,12 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nameAr.trim() || !nameEn.trim() || !isValidDriverPin(pinCode)) return;
+    if (!nameAr.trim() || !nameEn.trim()) return;
 
     const saved = updateDriverProfile(driver.id, changedProfileFields(originalProfile, {
       nameAr: nameAr.trim(),
       nameEn: nameEn.trim(),
-      phone: phone.trim(),
-      pinCode
+      phone: phone.trim()
     }));
     setSaveError(!saved);
     if (!saved) return;
@@ -175,36 +173,8 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
                 </p>
               </div>
 
-              {/* 4-Digit PIN */}
-              <div>
-                <label htmlFor="driver-profile-pin" className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">
-                  {isAr ? 'رمز محلي قديم (لا يغيّر رمز الدخول)' : 'Legacy local PIN (does not change your access code)'}
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <KeyRound size={15} />
-                  </div>
-                  <input
-                    id="driver-profile-pin"
-                    type="password"
-                    maxLength={6}
-                    minLength={4}
-                    pattern="[0-9]{4,6}"
-                    inputMode="numeric"
-                    required
-                    autoComplete="new-password"
-                    value={pinCode}
-                    onChange={(e) => setPinCode(e.target.value)}
-                    dir="ltr"
-                    className="w-full pl-9 pr-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-sm font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  {isAr ? 'رمز الدخول الخاص المكوّن من 8 أرقام يديره المسؤول بشكل منفصل.' : 'Your private 8-digit access code is managed separately by the administrator.'}
-                </p>
-              </div>
 
-              {saveError && <p role="alert" className="text-xs font-bold text-rose-600">{isAr ? 'تعذر الحفظ. تحقق من الاسم ورقم واتساب ورمز الدخول.' : 'Could not save. Check the name, WhatsApp number and PIN.'}</p>}
+              {saveError && <p role="alert" className="text-xs font-bold text-rose-600">{isAr ? 'تعذر الحفظ. تحقق من الاسم ورقم واتساب.' : 'Could not save. Check the name and WhatsApp number.'}</p>}
               {/* Save Button */}
               <button
                 type="submit"

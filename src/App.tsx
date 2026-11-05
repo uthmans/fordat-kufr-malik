@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { TransitProvider, useTransit } from './context/TransitContext';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
@@ -8,10 +8,17 @@ import { SettingsView } from './components/SettingsView';
 import { DataStatusBanner } from './components/DataStatusBanner';
 import { AppUpdateProvider } from './context/AppUpdateContext';
 import { AppUpdateBanner } from './components/AppUpdateBanner';
+import { AdminPortal } from './components/AdminPortal';
 
 const MainAppContent: React.FC = () => {
   const { activeTab, language, highContrast } = useTransit();
   const isAr = language === 'ar';
+  const [adminRoute, setAdminRoute] = useState(() => typeof window !== 'undefined' && window.location.hash === '#/admin');
+  useEffect(() => {
+    const sync = () => setAdminRoute(window.location.hash === '#/admin');
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -42,13 +49,15 @@ const MainAppContent: React.FC = () => {
           className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-3 sm:px-4 py-3 space-y-4"
         >
           <DataStatusBanner />
-          {activeTab === 'villager' && <VillagerView />}
-          {activeTab === 'driver' && <DriverView />}
-          {activeTab === 'settings' && <SettingsView />}
+          {adminRoute ? <AdminPortal onClose={() => { window.location.hash=''; setAdminRoute(false); }} /> : <>
+            {activeTab === 'villager' && <VillagerView />}
+            {activeTab === 'driver' && <DriverView />}
+            {activeTab === 'settings' && <SettingsView />}
+          </>}
         </div>
 
         {/* Native Fixed Bottom Navigation Bar */}
-        <BottomNav />
+        {!adminRoute && <BottomNav />}
       </div>
     </div>
   );

@@ -36,3 +36,12 @@ test('publication requires an opaque session and a valid revision', async () => 
   assert.equal((await handler(request({ action: 'publish', driver_id: 'driver-1', snapshot: {}, revision: null }, undefined, 'short'))).status, 401);
   assert.equal(calls, 0);
 });
+test('admin actions use a separate gateway and never reach driver publication',async()=>{
+  let driverCalls=0; let adminParameters:any;
+  const handler=driverSessionHandler(async()=>{driverCalls++;return {data:{ok:true},error:null};},async()=> 'a'.repeat(64),
+    async input=>{adminParameters=input;return {data:{ok:true,role:'admin'},error:null};});
+  assert.equal((await handler(request({action:'admin_login',code:'9999'}))).status,401);
+  assert.equal((await handler(request({action:'admin_login',code:'123456789012'}))).status,200);
+  assert.equal(adminParameters.p_action,'login'); assert.equal(driverCalls,0);
+  assert.equal((await handler(request({action:'admin_publish'},undefined,'a'.repeat(64)))).status,400);
+});

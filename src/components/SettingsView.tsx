@@ -18,13 +18,13 @@ import {
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
-  const { language, setLanguage, highContrast, setHighContrast, resetAll, resetStatus } = useTransit();
+  const { language, setLanguage, highContrast, setHighContrast, resetAll, resetStatus, isAdminAuthenticated } = useTransit();
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const isAr = language === 'ar';
   const [showAdminPortal, setShowAdminPortal] = useState(false);
   const [showResetConfirmation, setShowResetConfirmation] = useState(false);
 
-  if (showAdminPortal) {
+  if (showAdminPortal && isAdminAuthenticated) {
     return <AdminPortal onClose={() => setShowAdminPortal(false)} />;
   }
 
@@ -35,8 +35,7 @@ export const SettingsView: React.FC = () => {
       {/* 1. GPS Tracking & Movement Simulation Lab */}
       <GPSSimulatorPanel />
 
-      {/* 2. Admin Portal Card (Master PIN 9999) */}
-      <div className="bg-slate-900 text-white rounded-3xl p-5 shadow-sm space-y-3">
+      {isAdminAuthenticated && <div className="bg-slate-900 text-white rounded-3xl p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold">
@@ -44,12 +43,12 @@ export const SettingsView: React.FC = () => {
             </div>
             <div>
               <h3 className="font-black text-sm text-white">
-                {isAr ? 'بوابة إدارة السائقين (Master PIN: 9999)' : 'Admin Portal (Master PIN: 9999)'}
+                {isAr ? 'إدارة السائقين' : 'Driver Administration'}
               </h3>
               <p className="text-[11px] text-slate-400">
                 {isAr
-                  ? 'إدارة السائقين الثمانية، إعادة تعيين الرموز، وأرشيف الرحلات العام'
-                  : 'Manage all 8 drivers, reset PINs, view and clear archives'}
+                  ? 'إدارة البيانات وأرشيف الرحلات'
+                  : 'Manage profiles and trip archives'}
               </p>
             </div>
           </div>
@@ -63,7 +62,7 @@ export const SettingsView: React.FC = () => {
             <span>{isAr ? 'فتح الإدارة' : 'Open Admin'}</span>
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* 3. PWA Native App Card */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-3">
@@ -176,7 +175,7 @@ export const SettingsView: React.FC = () => {
       </div>
 
       {/* 5. Reset All Data */}
-      <div className="p-4 rounded-3xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+      {isAdminAuthenticated && <div className="p-4 rounded-3xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
         <div>
           <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
             {isAr ? 'إعادة ضبط البيانات الأصلية' : 'Reset to Default Prototype Data'}
@@ -194,8 +193,8 @@ export const SettingsView: React.FC = () => {
           <RotateCcw size={13} />
           <span>{isAr ? 'إعادة ضبط' : 'Reset'}</span>
         </button>
-      </div>
-      {showResetConfirmation && <ResetConfirmation isAr={isAr}
+      </div>}
+      {showResetConfirmation && isAdminAuthenticated && <ResetConfirmation isAr={isAr}
         onCancel={() => setShowResetConfirmation(false)}
         onConfirm={() => { resetAll(); setShowResetConfirmation(false); }} />}
       {resetStatus && <p role="status" className={`text-xs p-3 rounded-2xl ${resetStatus === 'memory' ? 'bg-amber-100 text-amber-950' : 'bg-emerald-50 text-emerald-800'}`}>
