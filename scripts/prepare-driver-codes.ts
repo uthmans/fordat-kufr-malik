@@ -6,6 +6,8 @@ import { resolve, dirname } from 'node:path';
 import { INITIAL_DRIVERS } from '../src/data/initialDrivers';
 
 const target = resolve('..', 'outputs', 'private-transit', 'driver-access-codes.json');
+await mkdir(dirname(target), { recursive: true });
+await writeFile(resolve(dirname(target), '.gitignore'), '*\n');
 try {
   const current = JSON.parse(await readFile(target, 'utf8'));
   if (!Array.isArray(current.drivers) || current.drivers.length !== INITIAL_DRIVERS.length) throw new Error('Existing file needs administrator review');
@@ -19,7 +21,6 @@ try {
     used.add(code);
     return { driverId: driver.id, nameAr: driver.nameAr, nameEn: driver.nameEn, code };
   });
-  await mkdir(dirname(target), { recursive: true });
   await writeFile(target, JSON.stringify({ note: 'PRIVATE: Give each driver only their own code. Never commit or publish this file.', drivers }, null, 2), { flag: 'wx' });
   console.log(JSON.stringify({ path: target, count: drivers.length, created: true }));
 }
