@@ -11,6 +11,7 @@ import { hasRecentSeatCount, hasRecentGPS } from '../utils/dataFreshness';
 import { getDepartureAnnouncement } from '../utils/departureAnnouncement';
 import { DepartureAnnouncement } from './DepartureAnnouncement';
 import { PassengerPresets } from './PassengerPresets';
+import { SharedConnectionPanel } from './SharedConnectionPanel';
 import {
   Plus,
   Minus,
@@ -73,6 +74,7 @@ export const DriverView: React.FC = () => {
 
   return (
     <div className="space-y-4 animate-in fade-in duration-150">
+      <SharedConnectionPanel />
       {/* 1. Inactivity Auto-Pause Alert Banner */}
       {driver.autoPausedForInactivity && (
         <div className="p-4 rounded-3xl bg-amber-500 text-slate-950 shadow-md border-2 border-amber-600 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in slide-in-from-top-2 duration-200">

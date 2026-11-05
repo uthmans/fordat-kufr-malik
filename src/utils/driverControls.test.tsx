@@ -103,14 +103,14 @@ test('GPS callback and subsequent controls preserve each others updates before r
     assert.equal(api.acceptSeatRequest('req-controls'), true);
     api.startRealGPSTracking();
     assert.ok(positionCallback);
-    positionCallback({ coords: { latitude: 31.94, longitude: 35.22, accuracy: 5 }, timestamp: Date.now() } as GeolocationPosition);
+    positionCallback({ coords: { latitude: 31.94, longitude: 35.22, accuracy: 5 }, timestamp: Date.now() - 10 } as GeolocationPosition);
     api.setDriverPrayerShift('driver-1', 'after_isha');
     api.updateDriverNote('driver-1', 'Updated note', 'ملاحظة');
     assert.equal(drivers()[0].currentLocation.lat, 31.94);
     assert.equal(drivers()[0].gpsMode, 'live');
     assert.equal(drivers()[0].passengers, 2);
     assert.equal(drivers()[0].prayerShift, 'after_isha');
-    positionCallback({ coords: { latitude: 31.95, longitude: 35.23, accuracy: 5 }, timestamp: Date.now() + 1 } as GeolocationPosition);
+    positionCallback({ coords: { latitude: 31.95, longitude: 35.23, accuracy: 5 }, timestamp: Date.now() } as GeolocationPosition);
     assert.equal(drivers()[0].departureNoteEn, 'Updated note');
     assert.equal(drivers()[0].prayerShift, 'after_isha');
     assert.equal(drivers()[0].currentLocation.lat, 31.95);

@@ -33,6 +33,7 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
   const alive = useRef(false);
   const authGeneration = useRef(0);
   const starting = useRef(false);
+  const sharingGeneration = useRef(0);
   const signingIn = useRef(false);
   const publisher = useRef<SharedPublisher | null>(null);
 
@@ -149,31 +150,35 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
     if (driver) publisher.current?.queue(driver);
   }, [drivers, localDriverId, sharing]);
 
-  const startSharing = async () => {
+  const startSharing = async (readCurrentDriver?: () => Driver | undefined) => {
     if (starting.current) return false;
     starting.current = true;
+    const sharingAttempt = ++sharingGeneration.current;
     const id = owner.current;
     const generation = authGeneration.current;
     try {
       if (!id || id !== latest.current.localDriverId || !navigator.onLine) return false;
       const { data, error } = await sharedClient().from('transit_driver_live')
         .select('driver_id,revision,received_at,snapshot').eq('driver_id', id).maybeSingle();
-      if (!alive.current || generation !== authGeneration.current || owner.current !== id || latest.current.localDriverId !== id) return false;
+      if (!alive.current || sharingAttempt !== sharingGeneration.current || generation !== authGeneration.current || owner.current !== id || latest.current.localDriverId !== id) return false;
       if (error) return false;
       const row = data ? readSharedDriverRow(data) : null;
       if (data && !row) return false;
       // Reconcile authoritative operational state before publishing from this phone.
       // Keep this phone's new GPS fix and movement anchors, not another phone's.
-      const driver = row ? latest.current.hydrateOwner(row) : latest.current.drivers.find(d => d.id === id);
+      const driver = row ? latest.current.hydrateOwner(row) : (readCurrentDriver ? readCurrentDriver() : latest.current.drivers.find(d => d.id === id));
       if (row) acceptRows([row]);
       if (!driver || !publishableDriver(driver, Date.now())) return false;
       publisher.current?.start(id, row);
       publisher.current?.queue(driver);
       setPublishError(false); setSharing(true);
       return true;
-    } finally { starting.current = false; }
+    } finally { if (sharingAttempt === sharingGeneration.current) starting.current = false; }
   };
-  const stopSharing = () => { publisher.current?.stop(); setSharing(false); };
+  const stopSharing = () => {
+    sharingGeneration.current++; starting.current = false;
+    publisher.current?.stop(); setSharing(false); setPublishError(false);
+  };
   const signInCode = async (driverId: string, code: string) => {
     signingIn.current = true;
     const generation = ++authGeneration.current;
