@@ -85,6 +85,8 @@ no PIN displays, owner-only demo controls and their removal on admin logout.
 Phone-feedback releases are intentionally separated: (1) admin/privacy and private
 demo tools; (2) one-button live GPS sharing with a real-fix wait; (3) responsive
 departure announcements and passenger Call/WhatsApp actions.
+The first two releases are implemented. The remaining phone-feedback release is
+announcement sizing and Call/WhatsApp actions.
 
 ## Damaged browser data
 
@@ -247,8 +249,11 @@ also recovers missed events. Local/demo GPS is excluded from the public view.
 
 Driver Mode verifies the selected driver's private code. Local PINs, the demo
 admin PIN, and saved local driver IDs cannot authorize cloud publishing.
-Settings & GPS > Share driver updates reloads
-existing shared counters/duty before publishing; this phone retains its GPS.
+Driver Mode and Settings provide a single **Share my location now** button.
+It stops simulation, hides demo data, starts phone GPS, waits for a fresh valid
+fix, then reloads existing shared counters/duty before publishing. This phone
+retains its own GPS. Finding-location and connecting states can be cancelled;
+late GPS callbacks and server reads cannot restart a cancelled publication.
 GPS-only publications are limited to one per minute, while seat/duty changes
 publish on the next two-second flush. Unchanged snapshots are skipped. Simulation
 and old GPS are not uploaded. Going off duty removes precise GPS from the
@@ -259,6 +264,9 @@ Sharing must be started after each app launch. A restored cloud account is not
 permission to silently restart GPS publication. Stopping sharing leaves the last
 snapshot subject to existing freshness checks; it does not change duty. Driver
 logout, switching local profiles, reset and cloud sign-out stop the publisher.
+The Stop sharing button also stops this phone's GPS watch. Permission denial,
+signal failure and offline startup have plain Arabic/English recovery messages.
+Ordinary drivers no longer have a separate GPS toggle or simulation panel.
 
 ### Private code handover
 
@@ -272,7 +280,8 @@ without printing credentials or uploading locations. To rotate a code, a trusted
 administrator must update its bcrypt hash and increment `version` atomically.
 
 On the driver's phone: select the matching roster profile, enter its private
-code, enable Phone GPS, then Start sharing in Settings. Subsequent launches
+code, then tap **Share my location now** on the dashboard and allow location
+access when the phone asks. Subsequent launches
 restore the remembered session. GPS sharing still requires an explicit start;
 restoring a login never silently starts location publication. Check an independent
 viewer phone before expanding the trial.

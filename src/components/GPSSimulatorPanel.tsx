@@ -36,6 +36,8 @@ export const GPSSimulatorPanel: React.FC = () => {
 
   const isAr = language === 'ar';
 
+  if (!isAdminAuthenticated) return null;
+
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
       {/* Title */}

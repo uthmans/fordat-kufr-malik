@@ -80,6 +80,10 @@ interface TransitContextType {
   startRealGPSTracking: () => void;
   stopRealGPSTracking: () => void;
   gpsError: string | null;
+  sharingPhase: 'idle' | 'gps' | 'connecting';
+  sharingError: boolean;
+  startDriverSharing: () => Promise<boolean>;
+  stopDriverSharing: () => void;
 
   // GPS Simulation
   isSimulatingGPS: boolean;
@@ -208,6 +212,11 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [resetStatus, setResetStatus] = useState<'saved' | 'memory' | null>(null);
   const gpsWatchRef = useRef<DriverLocationWatch | null>(null);
+  const gpsReadyRef = useRef<((ready: boolean) => void) | null>(null);
+  const sharingGeneration = useRef(0);
+  const sharingBusy = useRef(false);
+  const [sharingPhase, setSharingPhase] = useState<'idle' | 'gps' | 'connecting'>('idle');
+  const [sharingError, setSharingError] = useState(false);
 
   // Simulation state
   const [isSimulatingGPS, setIsSimulatingGPS] = useState(false);
@@ -662,26 +671,39 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [saveDrivers]);
 
   // HTML5 Geolocation Tracking
-  const startRealGPSTracking = () => {
+  const startRealGPSTracking = (): Promise<boolean> => {
+    stopRealGPSTracking();
     const driverId = authenticatedDriverIdRef.current;
     if (!driverId || !bookingStateRef.current.drivers.some((driver) => driver.id === driverId)) {
       setGpsError(language === 'ar' ? 'سجل دخولك كسائق لتشغيل GPS الهاتف' : 'Sign in as a driver to use phone GPS');
-      return;
+      return Promise.resolve(false);
     }
     if (!navigator.geolocation) {
       setGpsError(language === 'ar' ? 'نظام GPS غير مدعوم في هذا المتصفح' : 'Geolocation is not supported');
-      return;
+      return Promise.resolve(false);
     }
 
     setGpsError(null);
     setIsTrackingRealGPS(true);
-    setIsSimulatingGPS(false);
+    stopSimulation();
+    setShowDemoData(false);
+
+    const ready = new Promise<boolean>(resolve => {
+      const timer = setTimeout(() => {
+        setGpsError(language === 'ar' ? 'لم نتمكن من تحديد موقعك. شغّل موقع الهاتف وحاول مرة أخرى.' : 'Could not find your location. Turn on phone location and try again.');
+        stopRealGPSTracking();
+      }, 30000);
+      gpsReadyRef.current = value => { clearTimeout(timer); gpsReadyRef.current = null; resolve(value); };
+    });
 
     try {
       if (!gpsWatchRef.current) gpsWatchRef.current = new DriverLocationWatch(
         navigator.geolocation,
         (ownerId, pos) => {
           if (authenticatedDriverIdRef.current !== ownerId) return;
+          const { latitude, longitude } = pos.coords;
+          if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180 ||
+              !Number.isFinite(pos.timestamp) || pos.timestamp <= 0 || pos.timestamp > Date.now() || Date.now() - pos.timestamp >= 120000) return;
           setGpsError(null);
           updateDriverLocation(
             ownerId,
@@ -691,28 +713,71 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
             ownerId,
             pos.timestamp
           );
+          gpsReadyRef.current?.(true);
         },
         (err) => {
-          if (err.code === 1) setIsTrackingRealGPS(false);
-          setGpsError(err.message || 'GPS Signal Lost');
+          setGpsError(language === 'ar'
+            ? (err.code === 1 ? 'اسمح للتطبيق باستخدام الموقع من إعدادات المتصفح، ثم حاول مرة أخرى.' : 'شغّل موقع الهاتف وانتقل لمكان بإشارة أفضل، ثم حاول مرة أخرى.')
+            : (err.code === 1 ? 'Allow location access in your browser settings, then try again.' : 'Turn on phone location and move somewhere with a better signal, then try again.'));
+          if (gpsReadyRef.current || err.code === 1) stopRealGPSTracking();
         }
       );
       gpsWatchRef.current.start(driverId);
     } catch (e: any) {
       gpsWatchRef.current?.stop();
-      setIsTrackingRealGPS(false);
-      setGpsError(e.message || 'Error initializing GPS');
+      stopRealGPSTracking();
+      setGpsError(language === 'ar' ? 'تعذر تشغيل الموقع. تحقق من إعدادات موقع الهاتف ثم حاول مرة أخرى.' : 'Could not start location. Check phone location settings and try again.');
     }
+    return ready;
   };
 
   const stopRealGPSTracking = () => {
+    sharingGeneration.current++;
+    sharingBusy.current = false;
+    setSharingPhase('idle');
+    setSharingError(false);
+    gpsReadyRef.current?.(false);
     gpsWatchRef.current?.stop();
     setIsTrackingRealGPS(false);
+    shared.stopSharing();
+  };
+
+  const stopDriverSharing = () => {
+    stopRealGPSTracking();
+    shared.stopSharing();
+    setGpsError(null);
+  };
+
+  const startDriverSharing = async () => {
+    if (sharingBusy.current) return false;
+    if (!navigator.onLine) {
+      setGpsError(language === 'ar' ? 'لا يوجد اتصال بالإنترنت. اتصل بالإنترنت وحاول مرة أخرى.' : 'You are offline. Connect to the internet and try again.');
+      return false;
+    }
+    shared.stopSharing();
+    const ready = startRealGPSTracking();
+    const generation = sharingGeneration.current;
+    sharingBusy.current = true;
+    setSharingPhase('gps');
+    try {
+      if (!await ready || generation !== sharingGeneration.current) return false;
+      setSharingPhase('connecting');
+      const started = await shared.startSharing(() => bookingStateRef.current.drivers.find(d => d.id === authenticatedDriverIdRef.current));
+      if (generation === sharingGeneration.current) setSharingError(!started);
+      return started;
+    } catch {
+      if (generation === sharingGeneration.current) setSharingError(true);
+      return false;
+    } finally {
+      if (generation === sharingGeneration.current) { sharingBusy.current = false; setSharingPhase('idle'); }
+    }
   };
 
   useEffect(() => {
     return () => {
       gpsWatchRef.current?.stop();
+      gpsReadyRef.current?.(false);
+      sharingGeneration.current++;
     };
   }, []);
 
@@ -1005,6 +1070,10 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
         startRealGPSTracking,
         stopRealGPSTracking,
         gpsError,
+        sharingPhase,
+        sharingError,
+        startDriverSharing,
+        stopDriverSharing,
         isSimulatingGPS,
         toggleGPSSimulation,
         simulationProgress,
