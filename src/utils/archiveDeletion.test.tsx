@@ -7,8 +7,10 @@ import { INITIAL_DRIVERS } from '../data/initialDrivers';
 import { ArchiveDeleteConfirmation } from '../components/ArchiveDeleteConfirmation';
 import type { ArchivedTrip } from '../types';
 
-function withArchives(run: (api: ReturnType<typeof useTransit>, history: () => ArchivedTrip[], data: Map<string, string>) => void) {
+async function withArchives(run: (api: ReturnType<typeof useTransit>, history: () => ArchivedTrip[], data: Map<string, string>) => void | Promise<void>, authenticated=true) {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const previousFetch=globalThis.fetch;
+  globalThis.fetch=(async () => Response.json({ok:true,role:'admin',token:'a'.repeat(64),expires_at:new Date(Date.now()+86400000).toISOString()})) as typeof fetch;
   const archive = (id: string) => ({ id, driverId: 'driver-1', timestamp: Date.now(), formattedDate: 'Nov 4', passengersCount: 2, locationStatus: 'in_ramallah', entries: [] });
   const data = new Map<string, string>([
     ['kufr_malik_transit_drivers_v8', JSON.stringify([{ ...INITIAL_DRIVERS[0], passengers: 3 }])],
@@ -25,12 +27,31 @@ function withArchives(run: (api: ReturnType<typeof useTransit>, history: () => A
   try {
     renderToStaticMarkup(<TransitProvider><Capture /></TransitProvider>);
     assert.ok(api);
-    run(api, () => JSON.parse(data.get('kufr_malik_transit_history_v6')!), data);
+    if(authenticated) assert.equal(await api.adminLogin('123456789012'),true);
+    await run(api, () => JSON.parse(data.get('kufr_malik_transit_history_v6')!), data);
   } finally {
     if (previous) Object.defineProperty(globalThis, 'localStorage', previous);
     else Reflect.deleteProperty(globalThis, 'localStorage');
+    globalThis.fetch=previousFetch;
   }
 }
+
+test('a saved legacy admin flag and public PIN do not grant administration or demo access', () => withArchives(async (api,history,data) => {
+  assert.equal(api.isAdminAuthenticated,false);
+  assert.equal(await api.adminLogin('9999'),false);
+  api.deleteArchivedTrip('a');
+  assert.equal(history().length,2);
+  data.set('kufr_malik_show_demo_v1','false');
+  api.setShowDemoData(true);
+  assert.equal(data.get('kufr_malik_show_demo_v1'),'false');
+},false));
+
+test('admin logout disables demo access and stale demo controls cannot re-enable it', () => withArchives((api,_,data) => {
+  api.setShowDemoData(true);
+  assert.equal(data.get('kufr_malik_show_demo_v1'),'true');
+  api.adminLogout(); api.setShowDemoData(true);
+  assert.equal(data.get('kufr_malik_show_demo_v1'),'false');
+}));
 
 test('sequential deletes cannot restore a trip deleted by an earlier action', () => withArchives((api, history) => {
   api.deleteArchivedTrip('a');

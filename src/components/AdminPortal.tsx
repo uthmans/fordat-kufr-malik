@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useTransit } from '../context/TransitContext';
 import { Driver } from '../types';
 import { PhoneDisplay } from './PhoneDisplay';
-import { isValidDriverPin } from '../utils/driverPin';
 import { changedProfileFields } from '../utils/driverProfile';
 import { ArchiveDeleteConfirmation } from './ArchiveDeleteConfirmation';
 import {
@@ -45,6 +44,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
   const isAr = language === 'ar';
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
   const [activeTab, setActiveTab] = useState<'drivers' | 'archives'>('drivers');
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [archiveDeletion, setArchiveDeletion] = useState<{ ids: string[]; all: boolean } | null>(null);
@@ -53,14 +53,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
   const [editNameAr, setEditNameAr] = useState('');
   const [editNameEn, setEditNameEn] = useState('');
   const [editPhone, setEditPhone] = useState('');
-  const [editPin, setEditPin] = useState('');
   const [editCapacity, setEditCapacity] = useState(7);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState(false);
 
-  const handleAdminLoginSubmit = (e: React.FormEvent) => {
+  const handleAdminLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = adminLogin(pinInput);
+    if (signingIn) return;
+    setSigningIn(true);
+    const success = await adminLogin(pinInput);
+    setSigningIn(false);
     if (!success) {
       setPinError(true);
       setTimeout(() => setPinError(false), 2000);
@@ -75,19 +77,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
     setEditNameAr(d.nameAr);
     setEditNameEn(d.nameEn);
     setEditPhone(d.phone);
-    setEditPin(d.pinCode);
     setEditCapacity(d.maxCapacity || 7);
   };
 
   const handleSaveDriverEdit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingDriver || !isValidDriverPin(editPin)) return;
+    if (!editingDriver) return;
 
     const saved = adminUpdateDriver(editingDriver.id, changedProfileFields(editingDriver, {
       nameAr: editNameAr.trim(),
       nameEn: editNameEn.trim(),
       phone: editPhone.trim(),
-      pinCode: editPin,
       maxCapacity: Number(editCapacity)
     }));
     setSaveError(!saved);
@@ -113,8 +113,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
           </h2>
           <p className="text-xs text-slate-500">
             {isAr
-              ? 'أدخل الرمز السري للمسؤول لإدارة السائقين وتعديل البيانات (الرمز: 9999)'
-              : 'Enter master administrator PIN to manage drivers (PIN: 9999)'}
+              ? 'أدخل رمز الإدارة الخاص بك المكوّن من 12 رقماً. رموز السائقين لا تفتح هذه الصفحة.'
+              : 'Enter your private 12-digit administrator code. Driver codes cannot open this page.'}
           </p>
         </div>
 
@@ -122,10 +122,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
           <div className="relative">
             <input
               type="password"
-              maxLength={6}
+              maxLength={12}
+              minLength={12}
+              inputMode="numeric"
+              autoComplete="off"
               value={pinInput}
               onChange={(e) => setPinInput(e.target.value)}
-              placeholder="••••"
+              placeholder="••••••••••••"
               dir="ltr"
               className={`w-full text-center text-2xl font-mono tracking-widest py-3 px-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border-2 ${
                 pinError
@@ -137,7 +140,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
 
           {pinError && (
             <p className="text-center text-xs font-bold text-rose-600">
-              {isAr ? 'الرمز غير صحيح! الرمز الافتراضي للمسؤول هو 9999' : 'Invalid PIN! Master PIN is 9999'}
+              {isAr ? 'تعذر التحقق. راجع الرمز والاتصال، أو انتظر إذا تكررت المحاولات.' : 'Could not verify. Check the code and connection, or wait if too many attempts were made.'}
             </p>
           )}
 
@@ -153,10 +156,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
             )}
             <button
               type="submit"
+              disabled={signingIn}
               className="flex-1 py-3 px-4 rounded-2xl bg-slate-900 text-amber-400 hover:bg-slate-800 active:scale-98 font-black text-xs flex items-center justify-center gap-1.5 shadow-sm tap-highlight"
             >
               <Lock size={14} />
-              <span>{isAr ? 'دخول الإدارة' : 'Login Admin'}</span>
+              <span>{signingIn ? (isAr ? 'جارٍ التحقق…' : 'Verifying…') : (isAr ? 'دخول الإدارة' : 'Login Admin')}</span>
             </button>
           </div>
         </form>
@@ -181,7 +185,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
               </span>
             </h2>
             <p className="text-xs text-slate-500">
-              {isAr ? 'التحكم بالسائقين الثمانية وتعديل الأرقام والرموز' : 'Manage roster, shift flags & credentials'}
+              {isAr ? 'إدارة بيانات السائقين وأرشيف الرحلات' : 'Manage driver profiles and trip archives'}
             </p>
           </div>
         </div>
@@ -263,10 +267,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
 
                   <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
                     <PhoneDisplay phone={d.phone} className="font-mono text-[11px]" />
-                    <span>·</span>
-                    <span className="font-mono text-[11px] bg-slate-200 dark:bg-slate-700 px-1.5 py-0.2 rounded text-slate-700 dark:text-slate-300">
-                      {isAr ? 'الرمز' : 'PIN'}: {d.pinCode}
-                    </span>
                   </div>
                 </div>
 
@@ -275,7 +275,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
                   type="button"
                   onClick={() => startEditDriver(d)}
                   className="p-2 rounded-xl bg-white dark:bg-slate-800 text-slate-600 hover:text-amber-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors shadow-2xs"
-                  title={isAr ? 'تعديل البيانات والرمز' : 'Edit Profile & PIN'}
+                  title={isAr ? 'تعديل بيانات السائق' : 'Edit Driver Profile'}
                 >
                   <Edit2 size={14} />
                 </button>
@@ -403,7 +403,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm p-5 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-black text-sm text-slate-900 dark:text-slate-100">
-                {isAr ? 'تعديل بيانات السائق والرمز' : 'Edit Driver & PIN'}
+                {isAr ? 'تعديل بيانات السائق' : 'Edit Driver Profile'}
               </h3>
               <button
                 type="button"
@@ -457,25 +457,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onClose }) => {
                 />
               </div>
 
-              <div>
-                <label htmlFor="admin-driver-pin" className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  {isAr ? 'رمز محلي قديم (لا يغيّر رمز الدخول)' : 'Legacy local PIN (does not change access code)'}
-                </label>
-                <input
-                  id="admin-driver-pin"
-                  type="password"
-                  maxLength={6}
-                  minLength={4}
-                  pattern="[0-9]{4,6}"
-                  inputMode="numeric"
-                  autoComplete="new-password"
-                  value={editPin}
-                  onChange={(e) => setEditPin(e.target.value)}
-                  dir="ltr"
-                  required
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-slate-100"
-                />
-              </div>
+              <p className="text-xs text-slate-500">{isAr ? 'رموز الدخول تُسلّم بشكل خاص ولا تُعرض هنا.' : 'Access codes are handed over privately and are not displayed here.'}</p>
 
               {saveError && <p role="alert" className="text-xs font-bold text-rose-600">{isAr ? 'تعذر الحفظ. تحقق من البيانات وسعة السيارة الحالية.' : 'Could not save. Check the profile values and current vehicle capacity.'}</p>}
               <div className="flex gap-2 pt-2">

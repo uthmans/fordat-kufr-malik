@@ -1,8 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useTransit } from '../context/TransitContext';
 import { PhoneDisplay } from './PhoneDisplay';
-import { AdminPortal } from './AdminPortal';
-import { KeyRound, AlertCircle, Shield } from 'lucide-react';
+import { KeyRound, AlertCircle } from 'lucide-react';
 
 export const DriverLoginView: React.FC = () => {
   const { drivers, shared, language } = useTransit();
@@ -11,7 +10,6 @@ export const DriverLoginView: React.FC = () => {
   const [selectedDriverId, setSelectedDriverId] = useState(drivers[0]?.id || 'driver-1');
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [showAdminPortal, setShowAdminPortal] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
 
@@ -46,9 +44,6 @@ export const DriverLoginView: React.FC = () => {
     setError(null);
   };
 
-  if (showAdminPortal) {
-    return <AdminPortal onClose={() => setShowAdminPortal(false)} />;
-  }
 
   return (
     <div className="space-y-4 animate-in fade-in duration-200">
@@ -182,15 +177,6 @@ export const DriverLoginView: React.FC = () => {
         <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-center space-y-2">
           <div className="flex items-center justify-between text-[11px] text-slate-400 px-1 pt-1">
             <span>{isAr ? 'نسيت الرمز؟ راجع المسؤول.' : 'Forgot your code? Ask the administrator.'}</span>
-            {/* Admin Portal Gateway */}
-            <button
-              type="button"
-              onClick={() => setShowAdminPortal(true)}
-              className="text-slate-600 dark:text-slate-300 hover:text-amber-600 font-bold flex items-center gap-1 transition-colors"
-            >
-              <Shield size={12} className="text-amber-500" />
-              <span>{isAr ? 'بوابة الإدارة (9999)' : 'Admin Portal (9999)'}</span>
-            </button>
           </div>
         </div>
       </div>

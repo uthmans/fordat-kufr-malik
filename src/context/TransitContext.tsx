@@ -18,6 +18,7 @@ import { changePassengerCount, PassengerChange } from '../utils/passengerCount';
 import { editDriverProfile, DriverProfileUpdates } from '../utils/driverProfile';
 import { useSharedDrivers } from '../hooks/useSharedDrivers';
 import type { SharedDriverRow } from '../utils/sharedDriver';
+import { AdminAccessSession, ADMIN_SESSION_KEY } from '../utils/adminAccessSession';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
 const REQUESTS_KEY = 'kufr_malik_transit_requests_v6';
@@ -27,7 +28,6 @@ const ADMIN_AUTH_KEY = 'kufr_malik_admin_auth_v6';
 const LANG_KEY = 'kufr_malik_transit_lang';
 const CONTRAST_KEY = 'kufr_malik_transit_contrast';
 
-const MASTER_ADMIN_PIN = '9999';
 
 interface TransitContextType {
   shared: ReturnType<typeof useSharedDrivers>;
@@ -113,7 +113,7 @@ interface TransitContextType {
 
   // Admin Portal
   isAdminAuthenticated: boolean;
-  adminLogin: (pin: string) => boolean;
+  adminLogin: (pin: string) => Promise<boolean>;
   adminLogout: () => void;
   adminUpdateDriver: (driverId: string, updates: DriverProfileUpdates) => boolean;
 }
@@ -121,10 +121,9 @@ interface TransitContextType {
 const TransitContext = createContext<TransitContextType | undefined>(undefined);
 
 export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [showDemoData, setShowDemoDataState] = useState(() => {
-    try { return localStorage.getItem('kufr_malik_show_demo_v1') === 'true'; } catch { return false; }
-  });
+  const [showDemoData, setShowDemoDataState] = useState(false);
   const setShowDemoData = (value: boolean) => {
+    if (value && !adminAuthenticatedRef.current) return;
     setShowDemoDataState(value);
     try { localStorage.setItem('kufr_malik_show_demo_v1', String(value)); } catch {}
   };
@@ -164,14 +163,12 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   // Admin Auth State
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(ADMIN_AUTH_KEY) === 'true';
-    } catch {}
-    return false;
-  });
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const adminAuthenticatedRef = useRef(isAdminAuthenticated);
   adminAuthenticatedRef.current = isAdminAuthenticated;
+  const adminSession = useRef<AdminAccessSession | null>(null);
+  adminSession.current ??= new AdminAccessSession();
+  const adminGeneration = useRef(0);
 
   const [activeTab, setActiveTab] = useState<ActiveTab>(authenticatedDriverId ? 'driver' : 'villager');
 
@@ -216,7 +213,10 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isSimulatingGPS, setIsSimulatingGPS] = useState(false);
   const simulationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [simulationProgress, setSimulationProgressState] = useState(30);
-  const [simulationDirection, setSimulationDirection] = useState<'to_ramallah' | 'to_kufr_malik'>('to_ramallah');
+  const [simulationDirection, setSimulationDirectionState] = useState<'to_ramallah' | 'to_kufr_malik'>('to_ramallah');
+  const setSimulationDirection = (direction: 'to_ramallah' | 'to_kufr_malik') => {
+    if (adminAuthenticatedRef.current) setSimulationDirectionState(direction);
+  };
   const [isDetourSimulated, setIsDetourSimulated] = useState(false);
 
   const stopSimulation = () => {
@@ -292,6 +292,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const applyTransitReset = (resetDrivers: Driver[]) => {
+    adminLogout();
     shared.stopSharing();
     void shared.signOut();
     // Invalidate identity first so queued GPS callbacks cannot repopulate a driver.
@@ -310,7 +311,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setSelectedDriverId(resetDrivers[0].id);
     setIsDetourSimulated(false);
     setSimulationProgressState(30);
-    setSimulationDirection('to_ramallah');
+    setSimulationDirectionState('to_ramallah');
     setGpsError(null);
     setDataNow(Date.now());
     setActiveTab('settings');
@@ -345,7 +346,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
       } else if (message.type === 'UPDATE_TRIP_HISTORY') {
         tripHistoryRef.current = message.payload;
         setTripHistory(message.payload);
-      } else if (message.type === 'GPS_SIM_PROGRESS') {
+      } else if (message.type === 'GPS_SIM_PROGRESS' && adminAuthenticatedRef.current) {
         setSimulationProgressState(message.payload.progress);
         setIsDetourSimulated(message.payload.isDetour);
       }
@@ -426,25 +427,37 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setActiveTab('driver');
   };
 
-  // Admin Login Logic (Master PIN: 9999)
-  const adminLogin = (pin: string): boolean => {
-    if (pin.trim() === MASTER_ADMIN_PIN) {
-      adminAuthenticatedRef.current = true;
-      setIsAdminAuthenticated(true);
-      try { localStorage.setItem(ADMIN_AUTH_KEY, 'true'); } catch {}
-      if (typeof window !== 'undefined' && navigator.vibrate) {
-        try { navigator.vibrate([50, 50, 50]); } catch {}
-      }
-      return true;
+  const applyAdminAccess = (valid: boolean) => {
+    adminAuthenticatedRef.current = valid;
+    setIsAdminAuthenticated(valid);
+    if (!valid) {
+      stopSimulation();
+      setShowDemoDataState(false);
+      try { localStorage.setItem('kufr_malik_show_demo_v1', 'false'); } catch {}
     }
-    return false;
-  };
-
-  const adminLogout = () => {
-    adminAuthenticatedRef.current = false;
-    setIsAdminAuthenticated(false);
     try { localStorage.removeItem(ADMIN_AUTH_KEY); } catch {}
   };
+  const adminLogin = async (code: string) => {
+    const generation = ++adminGeneration.current;
+    const valid = await adminSession.current!.login(code);
+    if (generation !== adminGeneration.current) return false;
+    applyAdminAccess(valid); return valid;
+  };
+  const adminLogout = () => {
+    ++adminGeneration.current; applyAdminAccess(false); void adminSession.current!.logout();
+  };
+  useEffect(() => {
+    let alive = true;
+    const restore = async () => {
+      const generation = ++adminGeneration.current;
+      applyAdminAccess(false);
+      const valid = await adminSession.current!.restore();
+      if (alive && generation === adminGeneration.current) applyAdminAccess(valid);
+    };
+    const sync = (event: StorageEvent) => { if (event.key === ADMIN_SESSION_KEY || event.key === null) void restore(); };
+    void restore(); window.addEventListener('storage', sync);
+    return () => { alive=false; ++adminGeneration.current; window.removeEventListener('storage', sync); };
+  }, []);
 
   // On Duty / Off Duty Toggle
   const toggleDriverDuty = (driverId: string) => {
@@ -705,6 +718,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Simulation controls
   const toggleGPSSimulation = () => {
+    if (!adminAuthenticatedRef.current) return;
     if (!isSimulatingGPS) {
       stopRealGPSTracking();
     }
@@ -712,6 +726,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const setSimulationProgress = (progress: number) => {
+    if (!adminAuthenticatedRef.current) return;
     setSimulationProgressState(progress);
     broadcastSync('GPS_SIM_PROGRESS', { progress, isDetour: isDetourSimulated });
 
@@ -725,6 +740,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const toggleDetourSimulation = () => {
+    if (!adminAuthenticatedRef.current) return;
     const nextDetour = !isDetourSimulated;
     setIsDetourSimulated(nextDetour);
     broadcastSync('GPS_SIM_PROGRESS', { progress: simulationProgress, isDetour: nextDetour });
