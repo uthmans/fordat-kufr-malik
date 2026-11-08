@@ -3,7 +3,7 @@ import { useTransit } from '../context/TransitContext';
 import { Bus, Sun, Moon } from 'lucide-react';
 
 export const Header: React.FC = () => {
-  const { language, setLanguage, highContrast, setHighContrast, isTrackingRealGPS, isSimulatingGPS, showDemoData, isOnline, shared } = useTransit();
+  const { language, setLanguage, highContrast, setHighContrast, isSimulatingGPS, showDemoData, isOnline } = useTransit();
   const isAr = language === 'ar';
 
   return (
@@ -20,16 +20,11 @@ export const Header: React.FC = () => {
             </h1>
             <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-medium -mt-0.5 truncate">
               <span>{isAr ? 'خط كفر مالك ⇄ الموقف' : 'Kufr Malik ⇄ Ramallah'}</span>
-              <span>·</span>
-              <span className="text-amber-700 dark:text-amber-400 font-bold">
-                {isTrackingRealGPS
-                  ? isAr ? 'GPS الهاتف' : 'Phone GPS'
-                  : isSimulatingGPS
-                  ? isAr ? 'محاكاة نشطة' : 'Sim Active'
-                  : !isOnline ? (isAr ? 'دون اتصال' : 'Offline')
-                  : showDemoData ? (isAr ? 'تجريبي' : 'Demo')
-                  : shared.status === 'connected' ? (isAr ? 'تحديثات مشتركة' : 'Shared updates') : (isAr ? 'غير متصل' : 'Disconnected')}
-              </span>
+              {(!isOnline || showDemoData || isSimulatingGPS) && <span>·</span>}
+              {(!isOnline || showDemoData || isSimulatingGPS) && <span className="text-amber-700 dark:text-amber-400 font-bold">
+                {!isOnline ? (isAr ? 'دون اتصال' : 'Offline') : isSimulatingGPS
+                  ? (isAr ? 'محاكاة نشطة' : 'Sim active') : (isAr ? 'تجريبي' : 'Demo')}
+              </span>}
             </div>
           </div>
         </div>

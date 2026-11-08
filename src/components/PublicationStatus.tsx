@@ -12,10 +12,21 @@ const messages: Record<PublicationState, [string, string]> = {
   off_duty: ['تم نشر أنك خارج الدوام. لا يُنشر موقعك الدقيق وأنت خارج الدوام.', 'Your off-duty status is published. Your precise location is not published while off duty.']
 };
 
-export function PublicationStatus({ state, isAr }: { state: PublicationState; isAr: boolean }) {
+const shortMessages: Record<PublicationState, [string, string]> = {
+  stopped: ['المشاركة متوقفة', 'Not sharing'],
+  offline: ['دون إنترنت — التحديثات لا تصل', 'Offline — updates are not reaching passengers'],
+  gps_error: ['تعذر تحديد الموقع', 'Location unavailable'],
+  waiting: ['بانتظار تأكيد النشر…', 'Waiting for publication confirmation…'],
+  stale: ['التحديث قديم — تحقق من الموقع والإنترنت', 'Update is old — check location and internet'],
+  pending: ['جارٍ إرسال التغييرات…', 'Sending changes…'],
+  live: ['موقعك وتحديثاتك منشورة', 'Location and updates published'],
+  off_duty: ['تم نشر أنك خارج الدوام', 'Off-duty status published']
+};
+
+export function PublicationStatus({ state, isAr, compact = false }: { state: PublicationState; isAr: boolean; compact?: boolean }) {
   return <p role="status" className={`text-xs leading-relaxed font-bold p-3 rounded-xl ${state === 'live'
     ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
     : 'bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200'}`}>
-    {messages[state][isAr ? 0 : 1]}
+    {(compact ? shortMessages : messages)[state][isAr ? 0 : 1]}
   </p>;
 }

@@ -14,21 +14,21 @@ export const BottomNav: React.FC = () => {
   const tabs: { id: ActiveTab; labelEn: string; labelAr: string; icon: React.ReactNode; badge?: number }[] = [
     {
       id: 'villager',
-      labelEn: 'Villagers Feed',
-      labelAr: 'لوحة الركاب',
+      labelEn: 'Home',
+      labelAr: 'الرئيسية',
       icon: <Bus size={20} />
     },
     {
       id: 'driver',
-      labelEn: 'Driver Mode',
+      labelEn: 'Driver',
       labelAr: 'شاشة السائق',
       icon: <Gauge size={20} />,
       badge: pendingCount
     },
     {
       id: 'settings',
-      labelEn: 'Settings & GPS',
-      labelAr: 'الإعدادات و GPS',
+      labelEn: 'More',
+      labelAr: 'المزيد',
       icon: <Settings size={20} />
     }
   ];

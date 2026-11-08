@@ -19,14 +19,7 @@ import {
   Navigation,
   Users,
   AlertTriangle,
-  Moon,
-  Sun,
-  Sunset,
-  Flag,
-  LogOut,
   CheckCircle2,
-  XCircle,
-  UserCheck,
   Clock,
   Zap,
   AlertCircle,
@@ -37,7 +30,6 @@ export const DriverView: React.FC = () => {
   const {
     currentDriver,
     authenticatedDriverId,
-    logoutDriver,
     toggleDriverDuty,
     setDriverPrayerShift,
     setDepartureCountdown,
@@ -51,7 +43,8 @@ export const DriverView: React.FC = () => {
     isSimulatingGPS,
     language,
     dataNow,
-    shared
+    shared,
+    seatRequests
   } = useTransit();
 
   const isAr = language === 'ar';
@@ -72,10 +65,18 @@ export const DriverView: React.FC = () => {
   const statusConfig = STATUS_CONFIGS[driver.status] || STATUS_CONFIGS.to_ramallah;
   const driverDisplayName = isAr ? driver.nameAr : driver.nameEn;
   const activeDeparture = getDepartureAnnouncement(driver, dataNow);
+  const pendingRequestCount = seatRequests.filter(request => request.driverId === driver.id && request.status === 'pending').length;
 
   return (
     <div className="space-y-4 animate-in fade-in duration-150">
-      <SharedConnectionPanel />
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-black text-lg min-w-0 break-words">{driverDisplayName}</h2>
+        <button type="button" onClick={() => toggleDriverDuty(driver.id)}
+          className={`shrink-0 min-h-11 px-3 py-2 rounded-xl text-xs font-bold ${driver.isOnDuty ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' : 'bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200'}`}>
+          {driver.isOnDuty ? (isAr ? 'الدوام مفعّل · إيقاف' : 'On duty · Pause') : (isAr ? 'خارج الدوام · تفعيل' : 'Off duty · Resume')}
+        </button>
+      </div>
+      <SharedConnectionPanel compact />
       {/* 1. Inactivity Auto-Pause Alert Banner */}
       {driver.autoPausedForInactivity && (
         <div className="p-4 rounded-3xl bg-amber-500 text-slate-950 shadow-md border-2 border-amber-600 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in slide-in-from-top-2 duration-200">
@@ -107,87 +108,143 @@ export const DriverView: React.FC = () => {
         </div>
       )}
 
-      {/* 2. Driver Top Session Bar & Profile / Logout */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-3.5 shadow-xs flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-2xl bg-amber-500 text-slate-950 font-black flex items-center justify-center shrink-0 shadow-xs">
-            {driverDisplayName.slice(0, 2)}
+
+      {/* 4. RESPONSIVE PASSENGER CAPACITY COUNTER */}
+      <div className="bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-3xl p-4 sm:p-5 shadow-sm space-y-4">
+        {!hasRecentSeatCount(driver, dataNow) && <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-900 dark:text-amber-200 space-y-2">
+          <p>{isAr ? 'تأكد من عدد الركاب' : 'Check your passenger count'}</p>
+          <button type="button" onClick={() => confirmDriverPassengers(driver.id)} className="min-h-10 px-3 rounded-xl bg-amber-500 text-slate-950 font-bold">
+            {isAr ? 'تأكيد العدد الحالي' : 'Confirm current count'}
+          </button>
+        </div>}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-amber-500 shrink-0" />
+            <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
+              {isAr ? 'عدد الركاب' : 'Passengers'}
+            </h3>
           </div>
-          <div className="min-w-0">
-            <h2 className="text-sm font-black text-slate-900 dark:text-slate-100 truncate">
-              {driverDisplayName}
-            </h2>
-            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold">
-              <span className={`w-2 h-2 rounded-full ${driver.isOnDuty ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-              <span>{driver.isOnDuty ? (isAr ? 'متاح على هذا الجهاز' : 'On duty on this device') : (isAr ? 'غير متاح حالياً' : 'Off duty')}</span>
+
+          <div
+            className={`px-3 py-1 rounded-full text-xs font-black shrink-0 ${
+              isFull
+                ? 'bg-rose-600 text-white animate-pulse'
+                : vacantSeats > 0
+                ? 'bg-emerald-600 text-white'
+                : 'bg-slate-700 text-white'
+            }`}
+          >
+            {isFull
+              ? isAr ? `مكتمل (${driver.passengers}/${driver.maxCapacity})` : `FULL (${driver.passengers}/${driver.maxCapacity})`
+              : isAr
+              ? (vacantSeats === 1 ? 'متبقي مقعد واحد' : vacantSeats === 2 ? 'متبقي مقعدان' : `متبقي ${vacantSeats} مقاعد`)
+              : (vacantSeats === 1 ? '1 SEAT VACANT' : `${vacantSeats} SEATS VACANT`)}
+          </div>
+        </div>
+
+        {/* Stepper Buttons */}
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={() => decrementPassengers(driver.id)}
+            disabled={driver.passengers <= 0}
+            className={`flex-1 h-16 sm:h-20 rounded-2xl flex items-center justify-center font-black text-2xl sm:text-3xl shadow-sm transition-all tap-highlight ${
+              driver.passengers <= 0
+                ? 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                : 'bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white active:scale-95'
+            }`}
+            aria-label={isAr ? 'إنقاص عدد الركاب' : 'Decrease passenger count'}
+          >
+            <Minus size={32} strokeWidth={3.5} />
+          </button>
+
+          <div className="flex-1 text-center py-2 px-2 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+            <div dir="ltr" className="text-4xl sm:text-5xl font-black font-mono tracking-tight text-slate-900 dark:text-slate-100">
+              {driver.passengers}
+              <span className="text-xl sm:text-2xl text-slate-400 font-sans font-normal"> / {driver.maxCapacity}</span>
+            </div>
+            <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              {isAr
+                ? (driver.passengers === 1 ? 'راكب واحد' : driver.passengers === 2 ? 'راكبان' : 'ركاب')
+                : (driver.passengers === 1 ? 'passenger' : 'passengers')}
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          {/* Driver Profile & Archive modal trigger */}
           <button
             type="button"
-            onClick={() => setShowProfileModal(true)}
-            className="py-1.5 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center gap-1 transition-colors tap-highlight"
-            title={isAr ? 'ملفي وسجل الرحلات' : 'My Profile & Trips'}
+            onClick={() => incrementPassengers(driver.id)}
+            disabled={driver.passengers >= driver.maxCapacity}
+            className={`flex-1 h-16 sm:h-20 rounded-2xl flex items-center justify-center font-black text-2xl sm:text-3xl shadow-sm transition-all tap-highlight ${
+              driver.passengers >= driver.maxCapacity
+                ? 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95'
+            }`}
+            aria-label={isAr ? 'زيادة عدد الركاب' : 'Increase passenger count'}
           >
-            <UserCheck size={14} className="text-amber-500" />
-            <span className="hidden sm:inline">{isAr ? 'ملفي' : 'Profile'}</span>
-          </button>
-
-          {/* Logout */}
-          <button
-            type="button"
-            onClick={logoutDriver}
-            className="py-1.5 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center gap-1 transition-colors tap-highlight"
-            title={isAr ? 'تسجيل الخروج من الكابينة' : 'Log out from cab'}
-          >
-            <LogOut size={13} />
-            <span>{isAr ? 'خروج' : 'Exit'}</span>
+            <Plus size={32} strokeWidth={3.5} />
           </button>
         </div>
+
+        <details className="border-t border-slate-100 dark:border-slate-800">
+          <summary className="min-h-11 py-3 cursor-pointer text-xs font-bold">{isAr ? 'اختصارات المقاعد وشكل السيارة' : 'Seat shortcuts and layout'}</summary>
+          <div className="space-y-3 pb-2">
+        {/* 1-Tap Quick Seat Presets */}
+        <PassengerPresets passengers={driver.passengers} capacity={driver.maxCapacity} isAr={isAr}
+          onSet={count => updateDriverPassengers(driver.id, count)} onFull={() => fillDriverPassengers(driver.id)} />
+
+        {/* Visual Seating Graphic */}
+        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-center">
+          <SeatVisualizer
+            passengers={driver.passengers}
+            maxCapacity={driver.maxCapacity}
+            interactive={true}
+            onSeatClick={(index) => updateDriverPassengers(driver.id, index + 1)}
+            size="md"
+          />
+        </div>
+          </div>
+        </details>
       </div>
 
-      {/* 3. QUICK ON/OFF DUTY TOGGLE */}
-      <button
-        type="button"
-        onClick={() => toggleDriverDuty(driver.id)}
-        className={`w-full p-3.5 rounded-2xl border-2 text-left rtl:text-right transition-all tap-highlight flex items-center justify-between gap-3 ${
-          driver.isOnDuty
-            ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-950 dark:text-emerald-100 shadow-xs'
-            : 'bg-slate-100 dark:bg-slate-800/80 border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400'
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          {driver.isOnDuty ? (
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-              <CheckCircle2 size={20} />
-            </div>
-          ) : (
-            <div className="w-9 h-9 rounded-xl bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
-              <XCircle size={20} />
-            </div>
-          )}
-          <div>
-            <div className="font-black text-sm leading-tight">
-              {driver.isOnDuty
-                ? isAr ? 'الدوام مفعّل على هذا الهاتف' : 'Duty enabled on this phone'
-                : isAr ? 'الدوام متوقف على هذا الهاتف' : 'Duty paused on this phone'}
-            </div>
-            <span className="text-[11px] opacity-80 block mt-0.5">
-              {driver.isOnDuty
-                ? isAr ? 'الدوام مفعّل على هاتفك. تحقق من حالة المشاركة أعلاه لمعرفة ما وصل للركاب.' : 'Duty is enabled on your phone. Check the sharing status above to see what reached passengers.'
-                : isAr ? 'الدوام متوقف على هاتفك. تحقق من تأكيد نشر هذا التغيير أعلاه.' : 'Duty is paused on your phone. Check above for confirmation that this change was published.'}
-            </span>
+
+      {/* 5. QUICK DEPARTURE ANNOUNCEMENT (LAST TRIP LEAVING SOON) */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-300/80 dark:border-amber-700/60 rounded-3xl p-4 shadow-xs space-y-2.5">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Zap size={16} className="text-amber-500 shrink-0" />
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-slate-100">
+              {isAr ? 'متى ستغادر؟' : 'When are you leaving?'}
+            </h3>
           </div>
+          {activeDeparture && (
+            <button
+              type="button"
+              onClick={() => setDepartureCountdown(driver.id, null)}
+              className="text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:underline tap-highlight"
+            >
+              {isAr ? 'إلغاء التنبيه ✕' : 'Clear Alert ✕'}
+            </button>
+          )}
         </div>
 
-        <span className="px-3 py-1.5 rounded-xl font-black text-xs shrink-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs">
-          {driver.isOnDuty ? (isAr ? 'إيقاف ⏸' : 'Pause') : (isAr ? 'تفعيل ▶' : 'Activate')}
-        </span>
-      </button>
+        <DepartureAnnouncement driver={driver} now={dataNow} isAr={isAr} />
+        {!driver.isOnDuty && <p className="text-[11px] text-slate-500 dark:text-slate-400">
+          {!driver.isOnDuty
+            ? (isAr ? 'فعّل الدوام لإرسال تنبيه مغادرة.' : 'Go on duty to post a departure announcement.')
+            : (isAr ? 'ينتهي التنبيه تلقائياً. «طالع الآن» يظهر لدقيقتين.' : 'Announcements expire automatically. “Leaving now” stays visible for two minutes.')}
+        </p>}
+        <DepartureButtons selected={activeDeparture?.key ?? null} onDuty={driver.isOnDuty} isAr={isAr}
+          onChange={countdown => setDepartureCountdown(driver.id, countdown)} />
+      </div>
 
+
+
+      <details className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl px-4">
+        <summary className="min-h-14 py-4 cursor-pointer font-bold">{isAr ? 'المزيد: المناوبة وسجل الرحلات' : 'More: shifts and trip records'}
+          {pendingRequestCount > 0 && <span className="ms-2 text-xs text-rose-700 dark:text-rose-300">({pendingRequestCount} {isAr ? 'طلبات' : 'requests'})</span>}
+        </summary>
+        <div className="space-y-4 pb-4">
+          <button type="button" onClick={() => setShowProfileModal(true)} className="min-h-12 w-full rounded-xl bg-slate-100 dark:bg-slate-800 font-bold text-sm">{isAr ? 'ملفي وأرشيف الرحلات' : 'My profile and trip archives'}</button>
       {/* 4. CULTURAL PRAYER-BASED SHIFT SCHEDULE PRESETS */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 shadow-xs space-y-2.5">
         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -239,36 +296,6 @@ export const DriverView: React.FC = () => {
             );
           })}
         </div>
-      </div>
-
-      {/* 5. QUICK DEPARTURE ANNOUNCEMENT (LAST TRIP LEAVING SOON) */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-300/80 dark:border-amber-700/60 rounded-3xl p-4 shadow-xs space-y-2.5">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Zap size={16} className="text-amber-500 shrink-0" />
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-slate-100">
-              {isAr ? 'تنبيه المغادرة السريع (طالع قريباً):' : 'Quick Departure Announcement:'}
-            </h3>
-          </div>
-          {activeDeparture && (
-            <button
-              type="button"
-              onClick={() => setDepartureCountdown(driver.id, null)}
-              className="text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:underline tap-highlight"
-            >
-              {isAr ? 'إلغاء التنبيه ✕' : 'Clear Alert ✕'}
-            </button>
-          )}
-        </div>
-
-        <DepartureAnnouncement driver={driver} now={dataNow} isAr={isAr} />
-        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-          {!driver.isOnDuty
-            ? (isAr ? 'فعّل الدوام لإرسال تنبيه مغادرة.' : 'Go on duty to post a departure announcement.')
-            : (isAr ? 'ينتهي التنبيه تلقائياً. «طالع الآن» يظهر لدقيقتين.' : 'Announcements expire automatically. “Leaving now” stays visible for two minutes.')}
-        </p>
-        <DepartureButtons selected={activeDeparture?.key ?? null} onDuty={driver.isOnDuty} isAr={isAr}
-          onChange={countdown => setDepartureCountdown(driver.id, countdown)} />
       </div>
 
 
@@ -329,103 +356,16 @@ export const DriverView: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. RESPONSIVE PASSENGER CAPACITY COUNTER */}
-      <div className="bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-3xl p-4 sm:p-5 shadow-sm space-y-4">
-        {!hasRecentSeatCount(driver, dataNow) && <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-900 dark:text-amber-200 space-y-2">
-          <p>{isAr ? 'أكد عدد الركاب الموجودين في سيارتك. العدد المحفوظ غير مؤكد حديثاً.' : 'Confirm the passengers in your vehicle. The saved count has not been confirmed recently.'}</p>
-          <button type="button" onClick={() => confirmDriverPassengers(driver.id)} className="min-h-10 px-3 rounded-xl bg-amber-500 text-slate-950 font-bold">
-            {isAr ? 'تأكيد العدد الحالي' : 'Confirm current count'}
-          </button>
-        </div>}
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-amber-500 shrink-0" />
-            <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
-              {isAr ? 'سعة الركاب الحالية' : 'Passenger Capacity'}
-            </h3>
-          </div>
-
-          <div
-            className={`px-3 py-1 rounded-full text-xs font-black shrink-0 ${
-              isFull
-                ? 'bg-rose-600 text-white animate-pulse'
-                : vacantSeats > 0
-                ? 'bg-emerald-600 text-white'
-                : 'bg-slate-700 text-white'
-            }`}
-          >
-            {isFull
-              ? isAr ? `مكتمل (${driver.passengers}/${driver.maxCapacity})` : `FULL (${driver.passengers}/${driver.maxCapacity})`
-              : isAr
-              ? (vacantSeats === 1 ? 'متبقي مقعد واحد' : vacantSeats === 2 ? 'متبقي مقعدان' : `متبقي ${vacantSeats} مقاعد`)
-              : (vacantSeats === 1 ? '1 SEAT VACANT' : `${vacantSeats} SEATS VACANT`)}
-          </div>
-        </div>
-
-        {/* Stepper Buttons */}
-        <div className="flex items-center justify-between gap-2 sm:gap-3">
-          <button
-            type="button"
-            onClick={() => decrementPassengers(driver.id)}
-            disabled={driver.passengers <= 0}
-            className={`flex-1 h-16 sm:h-20 rounded-2xl flex items-center justify-center font-black text-2xl sm:text-3xl shadow-sm transition-all tap-highlight ${
-              driver.passengers <= 0
-                ? 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed'
-                : 'bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white active:scale-95'
-            }`}
-            aria-label="Decrease passenger count"
-          >
-            <Minus size={32} strokeWidth={3.5} />
-          </button>
-
-          <div className="flex-1 text-center py-2 px-2 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
-            <div className="text-4xl sm:text-5xl font-black font-mono tracking-tight text-slate-900 dark:text-slate-100">
-              {driver.passengers}
-              <span className="text-xl sm:text-2xl text-slate-400 font-sans font-normal"> / {driver.maxCapacity}</span>
-            </div>
-            <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              {isAr
-                ? (driver.passengers === 1 ? 'راكب واحد' : driver.passengers === 2 ? 'راكبان' : 'ركاب')
-                : (driver.passengers === 1 ? 'passenger' : 'passengers')}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => incrementPassengers(driver.id)}
-            disabled={driver.passengers >= driver.maxCapacity}
-            className={`flex-1 h-16 sm:h-20 rounded-2xl flex items-center justify-center font-black text-2xl sm:text-3xl shadow-sm transition-all tap-highlight ${
-              driver.passengers >= driver.maxCapacity
-                ? 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed'
-                : 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95'
-            }`}
-            aria-label="Increase passenger count"
-          >
-            <Plus size={32} strokeWidth={3.5} />
-          </button>
-        </div>
-
-        {/* 1-Tap Quick Seat Presets */}
-        <PassengerPresets passengers={driver.passengers} capacity={driver.maxCapacity} isAr={isAr}
-          onSet={count => updateDriverPassengers(driver.id, count)} onFull={() => fillDriverPassengers(driver.id)} />
-
-        {/* Visual Seating Graphic */}
-        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-center">
-          <SeatVisualizer
-            passengers={driver.passengers}
-            maxCapacity={driver.maxCapacity}
-            interactive={true}
-            onSeatClick={(index) => updateDriverPassengers(driver.id, index + 1)}
-            size="md"
-          />
-        </div>
-      </div>
 
       {/* 5. PENDING BOOKING REQUESTS */}
       <SeatRequestsList driverId={driver.id} />
 
       {/* 6. CURRENT TRIP LOG WITH CONDITIONAL RAMALLAH/KUFR MALIK MODE & ARCHIVING */}
       <TripLogList driverId={driver.id} />
+
+
+        </div>
+      </details>
 
       {/* 7. DRIVER PROFILE MODAL */}
       {showProfileModal && (

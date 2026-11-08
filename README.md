@@ -94,6 +94,22 @@ by choosing Call. Real phone-to-phone GPS still requires a driver trial.
 
 ## Shared availability and delivery status
 
+The passenger home prioritizes fresh driver cards with direction, confirmed seats
+and Call/WhatsApp. The full directory, route map, detailed locations/shift badges,
+seat diagrams, aggregate seat count and installation help remain available in
+expandable sections. Healthy connection explanations no longer occupy the main
+screen; offline/error and owner-only demo warnings remain visible. Reservation
+name memory, seat selection, confirmation warnings and WhatsApp handoff are
+unchanged; message preview/help can be expanded.
+
+The driver main screen prioritizes duty, location sharing, passenger counting
+and departures. Compact publication messages preserve pending/stale/offline
+distinctions. Seat presets/diagrams, shifts, GPS details, local requests, trip
+logs, profiles and archives remain accessible through disclosures. The bottom
+navigation is Home / Driver / More. Switching screens or signing in resets the
+scroll position, and the passenger ratio stays LTR inside Arabic layouts. This
+release changes presentation, not duty/sharing or booking behavior.
+
 The public active list requires both a server report and real GPS less than two
 minutes old. Expired on-duty records move to the contact directory with an
 availability warning, rather than remaining active indefinitely. Phone and

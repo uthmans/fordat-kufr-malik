@@ -11,7 +11,7 @@ import { AppUpdateBanner } from './components/AppUpdateBanner';
 import { AdminPortal } from './components/AdminPortal';
 
 const MainAppContent: React.FC = () => {
-  const { activeTab, language, highContrast } = useTransit();
+  const { activeTab, language, highContrast, authenticatedDriverId } = useTransit();
   const isAr = language === 'ar';
   const [adminRoute, setAdminRoute] = useState(() => typeof window !== 'undefined' && window.location.hash === '#/admin');
   useEffect(() => {
@@ -19,6 +19,10 @@ const MainAppContent: React.FC = () => {
     window.addEventListener('hashchange', sync);
     return () => window.removeEventListener('hashchange', sync);
   }, []);
+
+  useEffect(() => {
+    document.getElementById('scrollable-panel')?.scrollTo({ top: 0 });
+  }, [activeTab, adminRoute, authenticatedDriverId]);
 
   useEffect(() => {
     document.documentElement.lang = language;
