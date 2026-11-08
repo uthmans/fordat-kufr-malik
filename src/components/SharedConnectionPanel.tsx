@@ -1,9 +1,12 @@
 import React from 'react';
 import { useTransit } from '../context/TransitContext';
+import { publicationState } from '../utils/sharedAvailability';
+import { PublicationStatus } from './PublicationStatus';
 
 export function SharedConnectionPanel() {
   const { shared, language, setActiveTab, logoutDriver, drivers, startDriverSharing, stopDriverSharing,
-    sharingPhase, sharingError, gpsError } = useTransit();
+    sharingPhase, sharingError, gpsError, isOnline, dataNow: refreshTime } = useTransit();
+  const dataNow = Math.max(refreshTime, Date.now());
   const isAr = language === 'ar';
   const busy = sharingPhase !== 'idle';
   const owner = drivers.find(driver => driver.id === shared.ownerId);
@@ -32,8 +35,10 @@ export function SharedConnectionPanel() {
       </button>
       {!shared.sessionPersisted && <p role="status" className="text-xs text-amber-700">{isAr ? 'المتصفح يمنع حفظ الدخول. قد تحتاج الرمز عند فتح التطبيق مجدداً.' : 'Your browser blocked saved sign-in. You may need your code when reopening the app.'}</p>}
     </>}
-    {shared.sharing && <p role="status" className="text-xs font-bold text-emerald-700 dark:text-emerald-400">{isAr ? 'المشاركة مفعلة من هذا الهاتف' : 'Sharing enabled on this phone'}</p>}
-    {shared.lastPublished && <p className="text-xs text-slate-500">{isAr ? 'آخر تحديث منشور: ' : 'Last published: '}{new Date(shared.lastPublished).toLocaleTimeString(isAr ? 'ar' : 'en')}</p>}
+    {owner && !busy && <PublicationStatus isAr={isAr} state={publicationState({ driver: owner,
+      row: shared.rows.find(row => row.driver_id === owner.id), sharing: shared.sharing,
+      online: isOnline, gpsError: !!gpsError, lastPublished: shared.lastPublished, now: dataNow })} />}
+    {owner && shared.lastPublished && shared.rows.some(row => row.driver_id === owner.id && row.received_at === shared.lastPublished) && <p className="text-xs text-slate-500">{isAr ? 'آخر تحديث مؤكد: ' : 'Last confirmed update: '}{new Date(shared.lastPublished).toLocaleString(isAr ? 'ar' : 'en')}</p>}
     {owner && gpsError && <p role="alert" className="text-xs font-bold text-rose-600">{gpsError}</p>}
     {owner && !gpsError && (sharingError || shared.publishError) && <p role="alert" className="text-xs font-bold text-rose-600">{isAr
       ? 'تعذرت المشاركة. تحقق من الإنترنت ثم اضغط «مشاركة موقعي الآن» للمحاولة مجدداً. إذا استمرت المشكلة، سجّل خروجك وادخل برمزك مرة أخرى.'

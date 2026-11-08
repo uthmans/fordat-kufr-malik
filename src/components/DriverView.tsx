@@ -172,13 +172,13 @@ export const DriverView: React.FC = () => {
           <div>
             <div className="font-black text-sm leading-tight">
               {driver.isOnDuty
-                ? isAr ? 'على رأس عمله الآن (متاح للركاب)' : 'Active Today (On Duty)'
-                : isAr ? 'غير متاح اليوم (عطلة أو في استراحة)' : 'Off Duty Today'}
+                ? isAr ? 'الدوام مفعّل على هذا الهاتف' : 'Duty enabled on this phone'
+                : isAr ? 'الدوام متوقف على هذا الهاتف' : 'Duty paused on this phone'}
             </div>
             <span className="text-[11px] opacity-80 block mt-0.5">
               {driver.isOnDuty
-                ? isAr ? 'ظاهر لأهالي البلد في اللوحة ومستعد للتحميل' : 'Visible to villagers on live dashboard'
-                : isAr ? 'مخفي من لوحة الركاب حتى تفعل الدوام' : 'Hidden from public line'}
+                ? isAr ? 'الدوام مفعّل على هاتفك. تحقق من حالة المشاركة أعلاه لمعرفة ما وصل للركاب.' : 'Duty is enabled on your phone. Check the sharing status above to see what reached passengers.'
+                : isAr ? 'الدوام متوقف على هاتفك. تحقق من تأكيد نشر هذا التغيير أعلاه.' : 'Duty is paused on your phone. Check above for confirmation that this change was published.'}
             </span>
           </div>
         </div>
@@ -198,7 +198,7 @@ export const DriverView: React.FC = () => {
             </h3>
           </div>
           <span className="text-[10px] font-bold text-slate-400">
-            {isAr ? 'اختر بنقرة واحدة لإعلام الركاب' : '1-tap to broadcast'}
+            {isAr ? 'تُرسل التغييرات عند تفعيل المشاركة' : 'Changes publish while sharing is enabled'}
           </span>
         </div>
 

@@ -9,6 +9,7 @@ import { RouteVisualizer } from './RouteVisualizer';
 import { PWAInstallBanner } from './PWAInstallBanner';
 import { PreparedReservation, ReservationHandoff } from '../utils/reservationHandoff';
 import { hasRecentGPS, hasConfirmedSeats, isDemoDriver } from '../utils/dataFreshness';
+import { hasRecentSharedReport, isSharedDriverActive } from '../utils/sharedAvailability';
 import {
   MessageSquare,
   MapPin,
@@ -26,7 +27,8 @@ import {
 } from 'lucide-react';
 
 export const VillagerView: React.FC = () => {
-  const { drivers: localDrivers, shared, language, setSelectedDriverId, requestSeat, villagerName, showDemoData, dataNow } = useTransit();
+  const { drivers: localDrivers, shared, language, setSelectedDriverId, requestSeat, villagerName, showDemoData, dataNow: refreshTime } = useTransit();
+  const dataNow = Math.max(refreshTime, Date.now());
   // Local cached/demo GPS must never impersonate an update from another phone.
   const drivers = showDemoData ? localDrivers : localDrivers.map(driver => {
     const row = shared.rows.find(row => row.driver_id === driver.id);
@@ -49,8 +51,10 @@ export const VillagerView: React.FC = () => {
   const isAr = language === 'ar';
 
   // Only ON DUTY drivers appear in the active villager list!
-  const onDutyDrivers = drivers.filter((driver) => driver.isOnDuty && (showDemoData || !isDemoDriver(driver)));
-  const offDutyDrivers = drivers.filter((driver) => !driver.isOnDuty && (showDemoData || !isDemoDriver(driver)));
+  const onDutyDrivers = drivers.filter(driver => showDemoData ? driver.isOnDuty
+    : isSharedDriverActive(shared.rows.find(row => row.driver_id === driver.id), dataNow));
+  const offDutyDrivers = drivers.filter(driver => !driver.isOnDuty && (showDemoData ||
+    hasRecentSharedReport(shared.rows.find(row => row.driver_id === driver.id), dataNow)));
   const mapDrivers = onDutyDrivers.filter((driver) => hasRecentGPS(driver, dataNow) || (showDemoData && isDemoDriver(driver)));
   const confirmedDrivers = onDutyDrivers.filter((driver) => hasConfirmedSeats(driver, dataNow) || (showDemoData && isDemoDriver(driver)));
   const contactDrivers = showDemoData ? [] : drivers.filter((driver) => !onDutyDrivers.some((visible) => visible.id === driver.id));
@@ -219,7 +223,7 @@ export const VillagerView: React.FC = () => {
                 id={`driver-card-${driver.id}`}
                 className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs hover:shadow-md transition-all space-y-3.5"
               >
-                <p className="text-xs font-bold text-amber-700 dark:text-amber-400">{demo ? (isAr ? 'بيانات تجريبية' : 'Demo data') : isSignalOld ? (isAr ? 'موقع محفوظ — تحديث قديم' : 'Saved location — stale update') : (isAr ? 'GPS حديث من هذا الهاتف' : 'Recent GPS from this phone')}</p>
+                <p className="text-xs font-bold text-amber-700 dark:text-amber-400">{demo ? (isAr ? 'بيانات تجريبية' : 'Demo data') : isSignalOld ? (isAr ? 'موقع محفوظ — تحديث قديم' : 'Saved location — stale update') : (isAr ? 'موقع حديث مشترك من السائق' : 'Recent shared location from driver')}</p>
                 {/* Quick Departure Announcement Banner if Driver Set Countdown */}
                 <DepartureAnnouncement driver={driver} now={dataNow} isAr={isAr} />
 
@@ -316,6 +320,7 @@ export const VillagerView: React.FC = () => {
         <h2 className="text-sm font-black text-slate-900 dark:text-slate-100">{isAr ? 'التواصل مع السائقين — التوفر غير مؤكد' : 'Driver contacts — availability unconfirmed'}</h2>
         {contactDrivers.map((driver) => <div key={driver.id} className="space-y-2 py-3 border-t border-slate-100 dark:border-slate-800">
           <span className="min-w-0 text-sm font-bold text-slate-800 dark:text-slate-200">{isAr ? driver.nameAr : driver.nameEn}</span>
+          {driver.isOnDuty && <p className="text-xs text-amber-700 dark:text-amber-300">{isAr ? 'لا يوجد تحديث حديث يؤكد توفر السائق. اتصل للتأكد.' : 'No recent update confirms availability. Call to check.'}</p>}
           <DriverContactActions phone={driver.phone} name={isAr ? driver.nameAr : driver.nameEn} isAr={isAr}
             onWhatsApp={() => handleOpenWhatsAppModal(driver)} />
         </div>)}
