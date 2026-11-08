@@ -17,8 +17,8 @@ import { persistTransitReset } from '../utils/transitReset';
 import { changePassengerCount, PassengerChange } from '../utils/passengerCount';
 import { editDriverProfile, DriverProfileUpdates } from '../utils/driverProfile';
 import { useSharedDrivers } from '../hooks/useSharedDrivers';
-import type { SharedDriverRow } from '../utils/sharedDriver';
 import { AdminAccessSession, ADMIN_SESSION_KEY } from '../utils/adminAccessSession';
+import type { SharingResolution } from '../utils/sharingReconciliation';
 
 const DRIVERS_KEY = 'kufr_malik_transit_drivers_v8';
 const REQUESTS_KEY = 'kufr_malik_transit_requests_v6';
@@ -82,7 +82,7 @@ interface TransitContextType {
   gpsError: string | null;
   sharingPhase: 'idle' | 'gps' | 'connecting';
   sharingError: boolean;
-  startDriverSharing: () => Promise<boolean>;
+  startDriverSharing: (resolution?: SharingResolution) => Promise<boolean>;
   stopDriverSharing: () => void;
 
   // GPS Simulation
@@ -252,20 +252,11 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     broadcastSync('UPDATE_DRIVERS', newDrivers);
   }, []);
 
-  const hydrateSharedOwner = (row: SharedDriverRow) => {
+  const adoptSharedOwner = (driver: Driver) => {
     const latest = bookingStateRef.current.drivers;
-    const current = latest.find(driver => driver.id === row.driver_id);
-    if (!current || authenticatedDriverIdRef.current !== row.driver_id) return undefined;
-    // Adopt shared counters/duty before publishing. GPS belongs to this phone.
-    const hydrated = { ...current, ...row.snapshot, currentLocation: current.currentLocation,
-      directionAnchor: current.directionAnchor, dutyMovementAnchor: current.dutyMovementAnchor,
-      gpsMode: current.gpsMode, bearing: current.bearing, detectedNodeId: current.detectedNodeId,
-      status: current.status, isDetour: current.isDetour, detourNameEn: current.detourNameEn,
-      detourNameAr: current.detourNameAr, currentStopEn: current.currentStopEn,
-      currentStopAr: current.currentStopAr, proximityStatusEn: current.proximityStatusEn,
-      proximityStatusAr: current.proximityStatusAr };
-    saveDrivers(latest.map(driver => driver.id === current.id ? hydrated : driver));
-    return hydrated;
+    if (!latest.some(current => current.id === driver.id) || authenticatedDriverIdRef.current !== driver.id) return undefined;
+    saveDrivers(latest.map(current => current.id === driver.id ? driver : current));
+    return driver;
   };
   const restoreSharedIdentity = (id: string | null, freshLogin: boolean) => {
     if (id !== authenticatedDriverIdRef.current) { stopRealGPSTracking(); stopSimulation(); }
@@ -277,7 +268,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (freshLogin) activateDriverOnLogin(id);
     }
   };
-  const shared = useSharedDrivers(drivers, authenticatedDriverId, hydrateSharedOwner, restoreSharedIdentity);
+  const shared = useSharedDrivers(drivers, authenticatedDriverId, adoptSharedOwner, restoreSharedIdentity);
 
   const saveRequests = useCallback((newRequests: SeatRequest[]) => {
     bookingStateRef.current.requests = newRequests;
@@ -748,7 +739,7 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setGpsError(null);
   };
 
-  const startDriverSharing = async () => {
+  const startDriverSharing = async (resolution?: SharingResolution) => {
     if (sharingBusy.current) return false;
     if (!navigator.onLine) {
       setGpsError(language === 'ar' ? 'لا يوجد اتصال بالإنترنت. اتصل بالإنترنت وحاول مرة أخرى.' : 'You are offline. Connect to the internet and try again.');
@@ -762,9 +753,9 @@ export const TransitProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       if (!await ready || generation !== sharingGeneration.current) return false;
       setSharingPhase('connecting');
-      const started = await shared.startSharing(() => bookingStateRef.current.drivers.find(d => d.id === authenticatedDriverIdRef.current));
-      if (generation === sharingGeneration.current) setSharingError(!started);
-      return started;
+      const started = await shared.startSharing(() => bookingStateRef.current.drivers.find(d => d.id === authenticatedDriverIdRef.current), resolution);
+      if (generation === sharingGeneration.current) setSharingError(started === false);
+      return started === true;
     } catch {
       if (generation === sharingGeneration.current) setSharingError(true);
       return false;

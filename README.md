@@ -271,8 +271,15 @@ Driver Mode verifies the selected driver's private code. Local PINs, the demo
 admin PIN, and saved local driver IDs cannot authorize cloud publishing.
 Driver Mode and Settings provide a single **Share my location now** button.
 It stops simulation, hides demo data, starts phone GPS, waits for a fresh valid
-fix, then reloads existing shared counters/duty before publishing. This phone
-retains its own GPS. Finding-location and connecting states can be cancelled;
+fix, then compares saved phone settings with the latest published settings.
+Different duty, passenger counts, shifts or departure settings require an explicit
+choice: use this phone or use published settings. Settings are not replaced and
+publishing does not start while waiting for that choice. Both sources are rechecked before proceeding;
+a newer server revision or local edit invalidates an old confirmation. Every write
+still requires the matching server revision, so a later update from another phone
+stops publication rather than being overwritten. This phone retains its own GPS
+and recent duty activity even when published settings are selected.
+Finding-location and connecting states can be cancelled;
 late GPS callbacks and server reads cannot restart a cancelled publication.
 GPS-only publications are limited to one per minute, while seat/duty changes
 publish on the next two-second flush. Unchanged snapshots are skipped. Simulation
@@ -287,6 +294,9 @@ logout, switching local profiles, reset and cloud sign-out stop the publisher.
 The Stop sharing button also stops this phone's GPS watch. Permission denial,
 signal failure and offline startup have plain Arabic/English recovery messages.
 Ordinary drivers no longer have a separate GPS toggle or simulation panel.
+The install banner explains that live updates and WhatsApp messages need internet.
+The driver's booking panel explicitly states that requests from other phones
+arrive through WhatsApp and do not automatically appear in the local request list.
 
 ### Private code handover
 

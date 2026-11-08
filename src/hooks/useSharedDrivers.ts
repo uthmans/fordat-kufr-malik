@@ -5,6 +5,7 @@ import type { Driver } from '../types';
 import { mergeSharedDriverRows, readSharedDriverRow, type SharedDriverRow } from '../utils/sharedDriver';
 import { SharedPublisher, publishableDriver } from '../utils/sharedPublisher';
 import { DriverCodeSession, DRIVER_CODE_SESSION_KEY } from '../utils/driverCodeSession';
+import { planSharingStart, type SharingConflict, type SharingResolution } from '../utils/sharingReconciliation';
 
 let client: SupabaseClient | undefined;
 export function sharedClient() {
@@ -14,7 +15,7 @@ export function sharedClient() {
 }
 
 export function useSharedDrivers(drivers: Driver[], localDriverId: string | null,
-  hydrateOwner: (row: SharedDriverRow) => Driver | undefined,
+  adoptOwner: (driver: Driver) => Driver | undefined,
   onIdentity: (id: string | null, freshLogin: boolean) => void) {
   const [rows, setRows] = useState<SharedDriverRow[]>([]);
   const [status, setStatus] = useState<'connecting' | 'connected' | 'offline' | 'error'>('connecting');
@@ -25,8 +26,9 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
   const [sharing, setSharing] = useState(false);
   const [publishError, setPublishError] = useState(false);
   const [lastPublished, setLastPublished] = useState<string | null>(null);
-  const latest = useRef({ drivers, localDriverId, hydrateOwner, onIdentity });
-  latest.current = { drivers, localDriverId, hydrateOwner, onIdentity };
+  const [sharingConflict, setSharingConflict] = useState<SharingConflict | null>(null);
+  const latest = useRef({ drivers, localDriverId, adoptOwner, onIdentity });
+  latest.current = { drivers, localDriverId, adoptOwner, onIdentity };
   const codeSession = useRef<DriverCodeSession | null>(null);
   codeSession.current ??= new DriverCodeSession();
   const owner = useRef<string | null>(null);
@@ -103,6 +105,7 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
     const checkOwner = async () => {
       const generation = ++authGeneration.current;
       publisher.current?.stop();
+      setSharingConflict(null);
       owner.current = null;
       setOwnerId(null); setSharing(false); setHasAccount(false); setRestoring(true);
       try {
@@ -150,7 +153,7 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
     if (driver) publisher.current?.queue(driver);
   }, [drivers, localDriverId, sharing]);
 
-  const startSharing = async (readCurrentDriver?: () => Driver | undefined) => {
+  const startSharing = async (readCurrentDriver?: () => Driver | undefined, resolution?: SharingResolution): Promise<boolean | 'conflict'> => {
     if (starting.current) return false;
     starting.current = true;
     const sharingAttempt = ++sharingGeneration.current;
@@ -164,11 +167,16 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
       if (error) return false;
       const row = data ? readSharedDriverRow(data) : null;
       if (data && !row) return false;
-      // Reconcile authoritative operational state before publishing from this phone.
-      // Keep this phone's new GPS fix and movement anchors, not another phone's.
-      const driver = row ? latest.current.hydrateOwner(row) : (readCurrentDriver ? readCurrentDriver() : latest.current.drivers.find(d => d.id === id));
+      const local = readCurrentDriver ? readCurrentDriver() : latest.current.drivers.find(d => d.id === id);
+      if (!local) return false;
+      const plan = planSharingStart(local, row, resolution);
       if (row) acceptRows([row]);
-      if (!driver || !publishableDriver(driver, Date.now())) return false;
+      if (plan.kind === 'invalid') return false;
+      if (plan.kind === 'conflict') { setSharingConflict(plan.conflict); return 'conflict'; }
+      if (!publishableDriver(plan.driver, Date.now())) return false;
+      const driver = latest.current.adoptOwner(plan.driver);
+      if (!driver) return false;
+      setSharingConflict(null); setLastPublished(null);
       publisher.current?.start(id, row);
       publisher.current?.queue(driver);
       setPublishError(false); setSharing(true);
@@ -177,7 +185,7 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
   };
   const stopSharing = () => {
     sharingGeneration.current++; starting.current = false;
-    publisher.current?.stop(); setSharing(false); setPublishError(false);
+    publisher.current?.stop(); setSharing(false); setPublishError(false); setSharingConflict(null);
   };
   const signInCode = async (driverId: string, code: string) => {
     signingIn.current = true;
@@ -199,6 +207,6 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
     latest.current.onIdentity(null, false);
     return codeSession.current!.logout();
   };
-  return { rows, status, ownerId, hasAccount, sharing, publishError, lastPublished, restoring, sessionPersisted,
+  return { rows, status, ownerId, hasAccount, sharing, publishError, lastPublished, restoring, sessionPersisted, sharingConflict,
     startSharing, stopSharing, signInCode, signOut };
 }

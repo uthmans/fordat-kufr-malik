@@ -2,6 +2,7 @@ import React from 'react';
 import { useTransit } from '../context/TransitContext';
 import { publicationState } from '../utils/sharedAvailability';
 import { PublicationStatus } from './PublicationStatus';
+import { SharingConflictPanel } from './SharingConflictPanel';
 
 export function SharedConnectionPanel() {
   const { shared, language, setActiveTab, logoutDriver, drivers, startDriverSharing, stopDriverSharing,
@@ -22,20 +23,22 @@ export function SharedConnectionPanel() {
       <p className="text-xs text-slate-500">{isAr
         ? 'اضغط الزر واسمح باستخدام الموقع إذا طلب الهاتف. أبقِ التطبيق مفتوحاً أثناء العمل.'
         : 'Tap the button and allow location access if your phone asks. Keep the app open while working.'}</p>
-      <button type="button" onClick={() => busy || shared.sharing ? stopDriverSharing() : void startDriverSharing()}
+      <button type="button" onClick={() => busy || shared.sharing || shared.sharingConflict ? stopDriverSharing() : void startDriverSharing()}
         className="w-full min-h-14 p-3 rounded-xl bg-amber-500 text-slate-950 font-bold whitespace-normal break-words leading-snug">
-        {busy ? (isAr ? 'إلغاء' : 'Cancel') : shared.sharing ? (isAr ? 'إيقاف مشاركة موقعي' : 'Stop sharing my location')
+        {busy || shared.sharingConflict ? (isAr ? 'إلغاء' : 'Cancel') : shared.sharing ? (isAr ? 'إيقاف مشاركة موقعي' : 'Stop sharing my location')
           : (isAr ? 'مشاركة موقعي الآن' : 'Share my location now')}
       </button>
       {busy && <p role="status" className="text-xs font-bold">{sharingPhase === 'gps'
         ? (isAr ? 'جارٍ تحديد موقعك… اسمح باستخدام الموقع إذا طُلب منك.' : 'Finding your location… Allow location access if asked.')
         : (isAr ? 'جارٍ الاتصال لمشاركة موقعك…' : 'Connecting to share your location…')}</p>}
+      {!busy && shared.sharingConflict && <SharingConflictPanel conflict={shared.sharingConflict} isAr={isAr}
+        onResolve={resolution => void startDriverSharing(resolution)} />}
       <button type="button" onClick={logoutDriver} className="min-h-11 underline text-xs font-bold">
         {isAr ? 'تغيير السائق / تسجيل الخروج' : 'Switch Driver / Sign out'}
       </button>
       {!shared.sessionPersisted && <p role="status" className="text-xs text-amber-700">{isAr ? 'المتصفح يمنع حفظ الدخول. قد تحتاج الرمز عند فتح التطبيق مجدداً.' : 'Your browser blocked saved sign-in. You may need your code when reopening the app.'}</p>}
     </>}
-    {owner && !busy && <PublicationStatus isAr={isAr} state={publicationState({ driver: owner,
+    {owner && !busy && !shared.sharingConflict && <PublicationStatus isAr={isAr} state={publicationState({ driver: owner,
       row: shared.rows.find(row => row.driver_id === owner.id), sharing: shared.sharing,
       online: isOnline, gpsError: !!gpsError, lastPublished: shared.lastPublished, now: dataNow })} />}
     {owner && shared.lastPublished && shared.rows.some(row => row.driver_id === owner.id && row.received_at === shared.lastPublished) && <p className="text-xs text-slate-500">{isAr ? 'آخر تحديث مؤكد: ' : 'Last confirmed update: '}{new Date(shared.lastPublished).toLocaleString(isAr ? 'ar' : 'en')}</p>}
