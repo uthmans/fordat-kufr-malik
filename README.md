@@ -92,6 +92,22 @@ with the normalized international number; WhatsApp retains the name/seat booking
 flow. Invalid phone numbers disable both contact actions. No booking is created
 by choosing Call. Real phone-to-phone GPS still requires a driver trial.
 
+## Shared availability and delivery status
+
+The public active list requires both a server report and real GPS less than two
+minutes old. Expired on-duty records move to the contact directory with an
+availability warning, rather than remaining active indefinitely. Phone and
+WhatsApp contact actions remain available. Off-duty notices require a recent
+server report too; unknown availability is not labelled off duty.
+
+The driver dashboard distinguishes locally enabled duty from confirmed shared
+updates. Sharing enabled alone does not mean delivery succeeded: the status
+requires an acknowledged publication for this driver, current report/GPS and
+matching duty, passenger count, shift and announcement settings. Pending changes,
+offline state, location errors, stale reports and confirmed off-duty publication
+have separate Arabic/English messages. A newer local GPS fix alone does not mark
+normal minute-spaced location publishing as an unsent operational change.
+
 ## Damaged browser data
 
 Saved driver, booking, log, and archive records are validated before use. Valid
