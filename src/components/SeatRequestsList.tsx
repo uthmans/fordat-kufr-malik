@@ -45,7 +45,7 @@ export const SeatRequestsList: React.FC<SeatRequestsListProps> = ({ driverId }) 
               )}
             </h3>
             <p className="text-[11px] text-slate-500">
-              {isAr ? 'حجوزات الركاب من أهالي كفر مالك' : 'Passenger seat bookings from villagers'}
+              {isAr ? 'طلبات الهواتف الأخرى تصلك عبر واتساب، ولا تظهر هنا تلقائياً.' : 'Requests from other phones arrive through WhatsApp and do not appear here automatically.'}
             </p>
           </div>
         </div>

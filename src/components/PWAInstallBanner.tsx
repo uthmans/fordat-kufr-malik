@@ -26,8 +26,8 @@ export const PWAInstallBanner: React.FC = () => {
             </h4>
             <p className="text-[11px] font-medium text-slate-900 opacity-90">
               {isAr
-                ? 'تشغيل سريع ومباشر من شاشة الهاتف دون إنترنت'
-                : 'Fast offline access directly on your mobile home screen'}
+                ? 'افتحه من شاشة الهاتف. التحديثات المباشرة ورسائل واتساب تحتاج الإنترنت.'
+                : 'Open from your home screen. Live updates and WhatsApp messages need internet.'}
             </p>
           </div>
         </div>
