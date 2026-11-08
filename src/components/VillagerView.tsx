@@ -3,6 +3,7 @@ import { useTransit } from '../context/TransitContext';
 import { Driver, TripDirection } from '../types';
 import { PRAYER_SHIFT_CONFIGS } from '../data/initialDrivers';
 import { DepartureAnnouncement } from './DepartureAnnouncement';
+import { DriverContactActions } from './DriverContactActions';
 import { SeatVisualizer } from './SeatVisualizer';
 import { RouteVisualizer } from './RouteVisualizer';
 import { PWAInstallBanner } from './PWAInstallBanner';
@@ -302,17 +303,8 @@ export const VillagerView: React.FC = () => {
                   <SeatVisualizer passengers={driver.passengers} maxCapacity={driver.maxCapacity} size="md" />
                 </div>}
 
-                {/* 4. One Clear Action Button: "تواصل عبر واتساب / WhatsApp" */}
-                <div className="pt-1">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenWhatsAppModal(driver)}
-                    className="w-full min-h-[50px] py-3 px-4 bg-[#25D366] hover:bg-[#20ba59] active:scale-[0.99] text-white font-black text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all tap-highlight"
-                  >
-                    <MessageSquare size={18} className="fill-white" />
-                    <span>{isAr ? 'تواصل عبر واتساب (WhatsApp)' : 'Contact via WhatsApp'}</span>
-                  </button>
-                </div>
+                <DriverContactActions phone={driver.phone} name={displayName} isAr={isAr}
+                  onWhatsApp={() => handleOpenWhatsAppModal(driver)} />
               </div>
             );
           })}
@@ -322,9 +314,10 @@ export const VillagerView: React.FC = () => {
 
       {contactDrivers.length > 0 && <section className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
         <h2 className="text-sm font-black text-slate-900 dark:text-slate-100">{isAr ? 'التواصل مع السائقين — التوفر غير مؤكد' : 'Driver contacts — availability unconfirmed'}</h2>
-        {contactDrivers.map((driver) => <div key={driver.id} className="flex items-center justify-between gap-2 py-2 border-t border-slate-100 dark:border-slate-800">
+        {contactDrivers.map((driver) => <div key={driver.id} className="space-y-2 py-3 border-t border-slate-100 dark:border-slate-800">
           <span className="min-w-0 text-sm font-bold text-slate-800 dark:text-slate-200">{isAr ? driver.nameAr : driver.nameEn}</span>
-          <button type="button" onClick={() => handleOpenWhatsAppModal(driver)} className="min-h-10 shrink-0 px-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold">{isAr ? 'تواصل عبر واتساب' : 'WhatsApp'}</button>
+          <DriverContactActions phone={driver.phone} name={isAr ? driver.nameAr : driver.nameEn} isAr={isAr}
+            onWhatsApp={() => handleOpenWhatsAppModal(driver)} />
         </div>)}
       </section>}
 

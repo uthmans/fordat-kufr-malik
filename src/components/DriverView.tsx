@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTransit } from '../context/TransitContext';
-import { STATUS_CONFIGS, PRAYER_SHIFT_CONFIGS, DEPARTURE_COUNTDOWN_CONFIGS } from '../data/initialDrivers';
-import { PrayerShiftPreset, DepartureCountdown } from '../types';
+import { STATUS_CONFIGS, PRAYER_SHIFT_CONFIGS } from '../data/initialDrivers';
+import { PrayerShiftPreset } from '../types';
 import { SeatVisualizer } from './SeatVisualizer';
 import { SeatRequestsList } from './SeatRequestsList';
 import { TripLogList } from './TripLogList';
@@ -12,6 +12,7 @@ import { getDepartureAnnouncement } from '../utils/departureAnnouncement';
 import { DepartureAnnouncement } from './DepartureAnnouncement';
 import { PassengerPresets } from './PassengerPresets';
 import { SharedConnectionPanel } from './SharedConnectionPanel';
+import { DepartureButtons } from './DepartureButtons';
 import {
   Plus,
   Minus,
@@ -266,31 +267,8 @@ export const DriverView: React.FC = () => {
             ? (isAr ? 'فعّل الدوام لإرسال تنبيه مغادرة.' : 'Go on duty to post a departure announcement.')
             : (isAr ? 'ينتهي التنبيه تلقائياً. «طالع الآن» يظهر لدقيقتين.' : 'Announcements expire automatically. “Leaving now” stays visible for two minutes.')}
         </p>
-        <div className="grid grid-cols-3 gap-2">
-          {(['in_10_mins', 'in_5_mins', 'leaving_now'] as const).map((opt) => {
-            const conf = DEPARTURE_COUNTDOWN_CONFIGS[opt];
-            const isSelected = activeDeparture?.key === opt;
-
-            return (
-              <button
-                key={opt}
-                type="button"
-                disabled={!driver.isOnDuty}
-                onClick={() => setDepartureCountdown(driver.id, isSelected ? null : opt)}
-                className={`py-2.5 px-2 rounded-2xl font-black text-xs flex flex-col items-center justify-center gap-1 transition-all tap-highlight border-2 disabled:opacity-50 ${
-                  isSelected
-                    ? `${conf.pillBg} border-white/40 scale-102`
-                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-center gap-1">
-                  <span className={`w-2 h-2 rounded-full ${isSelected ? conf.dotColor : 'bg-slate-400'}`} />
-                  <span className="truncate">{conf[isAr ? 'labelAr' : 'labelEn']}</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        <DepartureButtons selected={activeDeparture?.key ?? null} onDuty={driver.isOnDuty} isAr={isAr}
+          onChange={countdown => setDepartureCountdown(driver.id, countdown)} />
       </div>
 
 

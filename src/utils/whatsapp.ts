@@ -18,6 +18,11 @@ export function cleanWhatsAppNumber(phone: string): string {
   return cleaned;
 }
 
+export function buildDriverCallUrl(phone: string): string | null {
+  const number = cleanWhatsAppNumber(phone);
+  return /^[1-9]\d{7,14}$/.test(number) ? `tel:+${number}` : null;
+}
+
 export function buildVillagerReservationUrl(
   driverPhone: string,
   passengerName: string,

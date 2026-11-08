@@ -85,8 +85,12 @@ no PIN displays, owner-only demo controls and their removal on admin logout.
 Phone-feedback releases are intentionally separated: (1) admin/privacy and private
 demo tools; (2) one-button live GPS sharing with a real-fix wait; (3) responsive
 departure announcements and passenger Call/WhatsApp actions.
-The first two releases are implemented. The remaining phone-feedback release is
-announcement sizing and Call/WhatsApp actions.
+All three phone-feedback releases are implemented. Announcement buttons stack on
+narrow phones and wrap full labels on wider screens. Driver cards and the contact
+directory offer separate Call and WhatsApp actions. Call opens the phone dialer
+with the normalized international number; WhatsApp retains the name/seat booking
+flow. Invalid phone numbers disable both contact actions. No booking is created
+by choosing Call. Real phone-to-phone GPS still requires a driver trial.
 
 ## Damaged browser data
 
