@@ -7,7 +7,7 @@ import { RouteVisualizer } from './RouteVisualizer';
 import { PWAInstallBanner } from './PWAInstallBanner';
 import { PreparedReservation, ReservationHandoff } from '../utils/reservationHandoff';
 import { hasRecentGPS, hasConfirmedSeats, isDemoDriver } from '../utils/dataFreshness';
-import { hasRecentSharedReport, isSharedDriverActive } from '../utils/sharedAvailability';
+import { hasLastSharedLocation, hasRecentSharedReport, isSharedDriverActive } from '../utils/sharedAvailability';
 import { MessageSquare, X } from 'lucide-react';
 
 export const VillagerView: React.FC = () => {
@@ -39,7 +39,11 @@ export const VillagerView: React.FC = () => {
     : isSharedDriverActive(shared.rows.find(row => row.driver_id === driver.id), dataNow));
   const offDutyDrivers = drivers.filter(driver => !driver.isOnDuty && (showDemoData ||
     hasRecentSharedReport(shared.rows.find(row => row.driver_id === driver.id), dataNow)));
-  const mapDrivers = onDutyDrivers.filter((driver) => hasRecentGPS(driver, dataNow) || (showDemoData && isDemoDriver(driver)));
+  const lastSeenDrivers = showDemoData ? [] : drivers.filter(driver => {
+    const row = shared.rows.find(row => row.driver_id === driver.id);
+    return hasLastSharedLocation(row, dataNow) && !isSharedDriverActive(row, dataNow);
+  }).sort((a, b) => b.currentLocation.timestamp - a.currentLocation.timestamp);
+  const mapDrivers = [...onDutyDrivers.filter((driver) => hasRecentGPS(driver, dataNow) || (showDemoData && isDemoDriver(driver))), ...lastSeenDrivers];
   const confirmedDrivers = onDutyDrivers.filter((driver) => hasConfirmedSeats(driver, dataNow) || (showDemoData && isDemoDriver(driver)));
 
   const filteredDrivers = onDutyDrivers.filter((driver) => {
@@ -95,7 +99,7 @@ export const VillagerView: React.FC = () => {
       <section aria-label={isAr ? 'مسار السائقين' : 'Driver route'}>
         <div className="pb-4 space-y-3">
           <p className="text-xs text-slate-500">{confirmedDrivers.length > 0 ? (isAr ? `المقاعد المؤكدة: ${totalOpenSeats}` : `Confirmed open seats: ${totalOpenSeats}`) : (isAr ? 'المقاعد غير مؤكدة' : 'Seats unconfirmed')}</p>
-          <RouteVisualizer drivers={mapDrivers} language={language} now={dataNow} demo={showDemoData}
+          <RouteVisualizer drivers={mapDrivers} language={language} now={dataNow} demo={showDemoData} staleDriverIds={lastSeenDrivers.map(driver => driver.id)}
           onSelectDriver={id => {
             setSelectedDriverId(id);
             setFilterDirection('all');
@@ -122,6 +126,11 @@ export const VillagerView: React.FC = () => {
         <p className="font-bold">{isAr ? 'لا توجد تحديثات حديثة حالياً' : 'No recent updates right now'}</p>
         <p className="text-sm text-slate-500">{isAr ? 'اتصل بأحد السائقين أدناه للتأكد.' : 'Call a driver below to check.'}</p>
       </div>}
+      {lastSeenDrivers.length > 0 && <section aria-label={isAr ? 'آخر ظهور للسائقين' : 'Last seen drivers'} className="space-y-3">
+        <h2 className="text-lg font-black">{isAr ? 'آخر ظهور — التوفر غير مؤكد' : 'Last seen — availability unconfirmed'}</h2>
+        {lastSeenDrivers.map(driver => <PassengerDriverCard key={driver.id} driver={driver} now={dataNow} isAr={isAr}
+          demo={false} lastSeen onWhatsApp={() => handleOpenWhatsAppModal(driver)} />)}
+      </section>}
       <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl px-4">
         <h2 className="min-h-14 py-4 font-bold">{isAr ? 'جميع السائقين' : 'All drivers'} ({drivers.length})</h2>
         <div className="pb-4 space-y-3">

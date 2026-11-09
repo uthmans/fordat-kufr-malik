@@ -7,6 +7,7 @@ import { SharedPublisher, publishableDriver } from '../utils/sharedPublisher';
 import { DriverCodeSession, DRIVER_CODE_SESSION_KEY } from '../utils/driverCodeSession';
 import { planSharingStart, type SharingConflict, type SharingResolution } from '../utils/sharingReconciliation';
 import { createDeviceKey, authenticateDeviceKey } from '../utils/deviceUnlock';
+import { PublicationError } from '../utils/publicationError';
 
 let client: SupabaseClient | undefined;
 export function sharedClient() {
@@ -26,6 +27,7 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
   const [sessionPersisted, setSessionPersisted] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [publishError, setPublishError] = useState(false);
+  const [recovering, setRecovering] = useState(false);
   const [lastPublished, setLastPublished] = useState<string | null>(null);
   const [sharingConflict, setSharingConflict] = useState<SharingConflict | null>(null);
   const latest = useRef({ drivers, localDriverId, adoptOwner, onIdentity });
@@ -51,6 +53,8 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
     let reading = false;
     let readAgain = false;
     let readerGeneration = 0;
+    let feedHealthy = false;
+    let lastRead = 0;
     const visible = () => document.visibilityState === 'visible' && navigator.onLine;
     const refresh = async () => {
       if (!visible()) return;
@@ -61,10 +65,14 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
         const { data, error } = await db.from('transit_driver_live')
           .select('driver_id,revision,received_at,snapshot');
         if (generation !== readerGeneration || !alive.current) return;
-        if (error || !mergeSharedDriverRows([], data)) { setStatus('error'); return; }
-        acceptRows(data);
+        const incoming = error ? null : mergeSharedDriverRows([], data);
+        if (!incoming) { feedHealthy = false; setStatus('error'); return; }
+        // This is a full authoritative read, so records deleted while offline
+        // must not survive indefinitely as last-seen entries.
+        setRows(current => mergeSharedDriverRows(current.filter(row => incoming.some(next => next.driver_id === row.driver_id)), incoming) ?? current);
+        feedHealthy = true; lastRead = Date.now();
         setStatus('connected');
-      } catch { if (alive.current) setStatus('error'); }
+      } catch { feedHealthy = false; if (alive.current) setStatus('error'); }
       finally { reading = false; if (readAgain) { readAgain = false; void refresh(); } }
     };
     const stopChannel = () => {
@@ -87,21 +95,47 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
       }).subscribe(result => {
         if (!alive.current || !visible() || generation !== readerGeneration) return;
         if (result === 'SUBSCRIBED') void refresh();
-        else if (result === 'CHANNEL_ERROR' || result === 'TIMED_OUT') setStatus('error');
+        else if (result === 'CHANNEL_ERROR' || result === 'TIMED_OUT') { feedHealthy = false; setStatus('error'); }
       });
       void refresh();
     };
     publisher.current = new SharedPublisher(async (snapshot, revision, signal) => {
       if (!owner.current || owner.current !== snapshot.id || latest.current.localDriverId !== snapshot.id ||
-          !navigator.onLine) throw new Error('Session changed or connection lost');
+          !codeSession.current!.read()) throw new PublicationError('invalid_session');
+      if (!navigator.onLine) throw new PublicationError('retryable');
       return codeSession.current!.publish(snapshot, revision, signal);
     }, row => { if (alive.current) { acceptRows([row]); setLastPublished(row.received_at); } },
-    () => { if (alive.current) {
+    error => { if (alive.current) {
       setSharing(false); setPublishError(true);
+      if (error instanceof PublicationError && error.kind === 'conflict' && error.row) {
+        const local = latest.current.drivers.find(driver => driver.id === owner.current);
+        if (local && error.row.driver_id === local.id) {
+          acceptRows([error.row]); setSharingConflict({ local, published: error.row });
+        }
+      }
       if (!codeSession.current!.read()) {
         owner.current = null; setOwnerId(null); setHasAccount(false); latest.current.onIdentity(null, false);
       }
-    } });
+    } }, Date.now, {
+      read: async (id, signal) => {
+        if (!navigator.onLine) throw new PublicationError('retryable');
+        const timeout = new AbortController();
+        const cancel = () => timeout.abort();
+        signal.addEventListener('abort', cancel, { once: true });
+        if (signal.aborted) cancel();
+        const timer = setTimeout(cancel, 15_000);
+        try {
+          const { data, error } = await db.from('transit_driver_live')
+            .select('driver_id,revision,received_at,snapshot').eq('driver_id', id).abortSignal(timeout.signal).maybeSingle();
+          if (error) throw new PublicationError('retryable');
+          const row = data ? readSharedDriverRow(data) : null;
+          if (data && (!row || row.driver_id !== id)) throw new PublicationError('invalid_request');
+          if (row && alive.current && !signal.aborted && owner.current === id) acceptRows([row]);
+          return row;
+        } finally { clearTimeout(timer); signal.removeEventListener('abort', cancel); }
+      },
+      onWaiting: value => { if (alive.current) setRecovering(value); }
+    });
 
     const checkOwner = async () => {
       const generation = ++authGeneration.current;
@@ -123,12 +157,21 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
       if (visible() && !owner.current && !signingIn.current && codeSession.current!.read()) void checkOwner();
     };
     void checkOwner();
-    const timer = setInterval(() => { if (visible()) void refresh(); }, 300_000);
+    const timer = setInterval(() => {
+      if (visible() && (!feedHealthy || Date.now() - lastRead >= 300_000)) void refresh();
+      retrySavedSession();
+    }, 30_000);
+    const recoverPublication = () => {
+      if (!navigator.onLine || document.visibilityState === 'visible') publisher.current?.reconnect();
+    };
     const publishTimer = setInterval(() => {
       // GPS can continue while the OS permits it, but viewers unsubscribe when hidden.
       if (navigator.onLine) void publisher.current?.flush();
     }, 2000);
     document.addEventListener('visibilitychange', reconnect);
+    document.addEventListener('visibilitychange', recoverPublication);
+    window.addEventListener('online', recoverPublication);
+    window.addEventListener('offline', recoverPublication);
     window.addEventListener('online', reconnect);
     window.addEventListener('offline', reconnect);
     window.addEventListener('storage', syncSession);
@@ -140,6 +183,8 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
       publisher.current?.stop(); stopChannel();
       clearInterval(timer); clearInterval(publishTimer);
       document.removeEventListener('visibilitychange', reconnect);
+      document.removeEventListener('visibilitychange', recoverPublication);
+      window.removeEventListener('online', recoverPublication); window.removeEventListener('offline', recoverPublication);
       window.removeEventListener('online', reconnect); window.removeEventListener('offline', reconnect);
       window.removeEventListener('storage', syncSession);
       window.removeEventListener('online', retrySavedSession);
@@ -216,6 +261,6 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
   };
   const enrollDevice = (code: string) => codeSession.current!.enrollDevice(code,createDeviceKey);
   const removeDeviceUnlock = () => codeSession.current!.removeDeviceUnlock();
-  return { rows, status, ownerId, hasAccount, sharing, publishError, lastPublished, restoring, sessionPersisted, sharingConflict,
+  return { rows, status, ownerId, hasAccount, sharing, publishError, recovering, lastPublished, restoring, sessionPersisted, sharingConflict,
     startSharing, stopSharing, signInCode, signOut, changePin, enrollDevice, removeDeviceUnlock };
 }

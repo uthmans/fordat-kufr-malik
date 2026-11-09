@@ -3,7 +3,8 @@ import { ROUTE_NODES } from '../data/routeNodes';
 import { Driver, Language } from '../types';
 import { Navigation, AlertTriangle, MapPin } from 'lucide-react';
 import { layoutRoutePins } from '../utils/routePinLayout';
-import { hasConfirmedSeats, isDemoDriver } from '../utils/dataFreshness';
+import { hasConfirmedSeats, hasRecentGPS, isDemoDriver } from '../utils/dataFreshness';
+import { formatLastSeen } from '../utils/sharedAvailability';
 
 interface RouteVisualizerProps {
   drivers: Driver[];
@@ -11,6 +12,7 @@ interface RouteVisualizerProps {
   onSelectDriver?: (driverId: string) => void;
   now?: number;
   demo?: boolean;
+  staleDriverIds?: string[];
 }
 
 const formatDriverPinName = (fullName: string, isArabic: boolean): string => {
@@ -33,7 +35,7 @@ const pinColor = (driver: Driver) => driver.isDetour ? 'bg-orange-600'
   : driver.status === 'to_ramallah' ? 'bg-blue-600'
   : driver.status === 'in_ramallah' ? 'bg-amber-600' : 'bg-purple-600';
 
-export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, language, onSelectDriver, now = Date.now(), demo = false }) => {
+export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, language, onSelectDriver, now = Date.now(), demo = false, staleDriverIds = [] }) => {
   const isAr = language === 'ar';
   const trackRef = useRef<HTMLDivElement>(null);
   const [trackWidth, setTrackWidth] = useState(0);
@@ -50,6 +52,8 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, langu
 
   const layout = layoutRoutePins(drivers.map((driver) => ({ id: driver.id, progress: getDriverProgress(driver) })), trackWidth);
   const driverById = new Map(drivers.map((driver) => [driver.id, driver]));
+  const isStale = (driver: Driver) => !(demo && isDemoDriver(driver)) && (staleDriverIds.includes(driver.id) || !hasRecentGPS(driver, now));
+  const markerColor = (driver: Driver) => isStale(driver) ? 'bg-slate-500' : pinColor(driver);
 
   return (
     <section data-testid="route-card" className="min-w-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs space-y-3">
@@ -65,7 +69,7 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, langu
         </span>
       </div>
 
-      {drivers.some((d) => d.isDetour) && (
+      {drivers.some((d) => d.isDetour && !isStale(d)) && (
         <div className="p-2.5 rounded-2xl bg-orange-50 dark:bg-orange-950/40 border border-orange-300 dark:border-orange-700/60 flex flex-wrap items-center justify-between text-xs text-orange-900 dark:text-orange-200 gap-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <AlertTriangle size={15} className="text-orange-600 shrink-0" />
@@ -100,9 +104,9 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, langu
             const driver = driverById.get(pin.id)!;
             const top = layout.height - 48 - pin.lane * 40;
             return (
-              <div key={pin.id} aria-hidden="true" className={'absolute w-px opacity-60 pointer-events-none ' + pinColor(driver)}
+              <div key={pin.id} aria-hidden="true" className={'absolute w-px opacity-60 pointer-events-none ' + markerColor(driver)}
                 style={{ left: pin.anchor, top: top + 32, height: layout.height - top - 32 }}>
-                <span className={'absolute bottom-0 -left-0.5 w-1.5 h-1.5 rounded-full ' + pinColor(driver)} />
+                <span className={'absolute bottom-0 -left-0.5 w-1.5 h-1.5 rounded-full ' + markerColor(driver)} />
               </div>
             );
           })}
@@ -110,7 +114,7 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, langu
           {trackWidth > 0 && layout.pins.map((pin) => {
             const driver = driverById.get(pin.id)!;
             const vacant = Math.max(0, driver.maxCapacity - driver.passengers);
-            const vacantText = !(hasConfirmedSeats(driver, now) || (demo && isDemoDriver(driver))) ? (isAr ? 'غير مؤكد' : 'Unconfirmed') : vacant === 0 ? (isAr ? 'مكتمل' : 'FULL')
+            const vacantText = isStale(driver) ? (isAr ? 'آخر ظهور' : 'Last seen') : !(hasConfirmedSeats(driver, now) || (demo && isDemoDriver(driver))) ? (isAr ? 'غير مؤكد' : 'Unconfirmed') : vacant === 0 ? (isAr ? 'مكتمل' : 'FULL')
               : isAr ? (vacant === 1 ? 'مقعد واحد' : vacant === 2 ? 'مقعدان' : vacant + ' مقاعد')
               : vacant === 1 ? '1 seat' : vacant + ' seats';
             const fullName = isAr ? driver.nameAr : driver.nameEn;
@@ -118,7 +122,7 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, langu
               <button key={pin.id} type="button" data-testid="route-pin" dir={isAr ? 'rtl' : 'ltr'}
                 onClick={() => onSelectDriver?.(pin.id)} disabled={!onSelectDriver}
                 title={fullName + ' (' + vacantText + ')'} aria-label={fullName + ' (' + vacantText + ')'}
-                className={'absolute z-10 h-8 px-2 rounded-lg text-[11px] font-black text-white shadow-sm flex items-center justify-between gap-1 whitespace-nowrap border border-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 ' + pinColor(driver)}
+                className={'absolute z-10 h-8 px-2 rounded-lg text-[11px] font-black text-white shadow-sm flex items-center justify-between gap-1 whitespace-nowrap border border-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 ' + markerColor(driver)}
                 style={{ left: pin.left, top: layout.height - 48 - pin.lane * 40, width: layout.labelWidth }}>
                 <span className="min-w-0 truncate">{formatDriverPinName(fullName, isAr)}</span>
                 <span className="shrink-0">{vacantText}</span>
@@ -144,10 +148,13 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, langu
               className="w-full text-start flex items-start justify-between text-xs p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors border border-slate-100 dark:border-slate-700/60 gap-2">
               <span className="flex items-start gap-1.5 min-w-0">
                 <MapPin size={13} className="text-amber-500 shrink-0 mt-0.5" />
-                <span className="font-extrabold text-slate-900 dark:text-slate-100 break-words">{isAr ? driver.proximityStatusAr : driver.proximityStatusEn}</span>
+                <span className="font-extrabold text-slate-900 dark:text-slate-100 break-words">
+                  {isStale(driver) && <span className="block text-slate-500">{formatLastSeen(driver.currentLocation.timestamp, now, isAr)}{' · '}{isAr ? 'الموقع لا يتحدّث' : 'Location not updating'}</span>}
+                  {isStale(driver) && (isAr ? 'آخر بلاغ: ' : 'Last report: ')}{isAr ? driver.proximityStatusAr : driver.proximityStatusEn}
+                </span>
               </span>
               <span className="text-[11px] font-bold text-slate-500 shrink-0" dir="auto">
-                {hasConfirmedSeats(driver, now) || (demo && isDemoDriver(driver))
+                {!isStale(driver) && (hasConfirmedSeats(driver, now) || (demo && isDemoDriver(driver)))
                   ? `${driver.passengers}/${driver.maxCapacity || 7} ${isAr ? 'ركاب' : 'passengers'}`
                   : (isAr ? 'المقاعد غير مؤكدة' : 'Seats unconfirmed')}
               </span>

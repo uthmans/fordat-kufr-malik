@@ -1,5 +1,6 @@
 import { sharedBackend } from '../config/sharedBackend';
 import { readSharedDriverRow, type PublicDriver } from './sharedDriver';
+import { PublicationError } from './publicationError';
 
 export const DRIVER_CODE_SESSION_KEY = 'kufr_malik_driver_code_session_v1';
 type StoredSession = { driverId: string; token: string; expiresAt: string };
@@ -143,12 +144,14 @@ export class DriverCodeSession {
   }
   async publish(snapshot: PublicDriver, revision: number | null, signal: AbortSignal) {
     const session = this.read();
-    if (!session || session.driverId !== snapshot.id) throw new Error('Driver session missing');
+    if (!session || session.driverId !== snapshot.id) throw new PublicationError('invalid_session');
     const result = await this.request({ action: 'publish', driver_id: snapshot.id, snapshot, revision }, session.token, signal);
-    if (this.read()?.token !== session.token) throw new Error('Driver session changed');
-    if (result.error === 'invalid_session') { this.discardedToken = session.token; this.save(null); }
+    if (this.read()?.token !== session.token) throw new PublicationError('invalid_session');
+    if (result.error === 'invalid_session') { this.discardedToken = session.token; this.save(null); throw new PublicationError('invalid_session'); }
+    if (!result.ok) throw new PublicationError(result.error === 'conflict' ? 'conflict'
+      : ['unavailable', 'rate_limited'].includes(result.error) ? 'retryable' : 'invalid_request');
     const row = result.ok ? readSharedDriverRow(result.row) : null;
-    if (!row || row.driver_id !== session.driverId) throw new Error('Publication failed');
+    if (!row || row.driver_id !== session.driverId) throw new PublicationError('invalid_request');
     return row;
   }
 }
