@@ -4,3 +4,8 @@
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/driver-session/index.ts"
+
+[functions.driver-security]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/driver-security/index.ts"

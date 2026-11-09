@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTransit } from '../context/TransitContext';
 import { PhoneDisplay } from './PhoneDisplay';
 import { KeyRound, AlertCircle } from 'lucide-react';
+import { supportsDeviceUnlock } from '../utils/deviceUnlock';
 
 export const DriverLoginView: React.FC = () => {
   const { drivers, shared, language } = useTransit();
@@ -12,6 +13,8 @@ export const DriverLoginView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const [deviceUnlock,setDeviceUnlock]=useState(false);
+  useEffect(()=>{let active=true;void supportsDeviceUnlock().then(value=>{if(active)setDeviceUnlock(value);});return()=>{active=false;};},[]);
 
   const selectedDriver = drivers.find((d) => d.id === selectedDriverId) || drivers[0];
   const driverDisplayName = isAr ? selectedDriver.nameAr : selectedDriver.nameEn;
@@ -23,20 +26,22 @@ export const DriverLoginView: React.FC = () => {
       const nextPin = pin + digit;
       setPin(nextPin);
       setError(null);
-      if (nextPin.length === pinLength) {
+    }
+  };
+  const submit = (device = false) => {
+      if(busyRef.current || (!device && pin.length<6)) return;
         busyRef.current = true; setBusy(true);
-        void shared.signInCode(selectedDriverId, nextPin).then(result => {
+        void shared.signInCode(selectedDriverId, pin, device).then(result => {
           if (!result.ok) {
             setError(result.error === 'rate_limited'
               ? (isAr ? 'محاولات كثيرة. انتظر 15 دقيقة ثم حاول مجدداً.' : 'Too many attempts. Wait 15 minutes and try again.')
               : result.error === 'unavailable'
               ? (isAr ? 'تعذر التحقق. تحقق من الإنترنت وحاول مجدداً.' : 'Could not verify. Check your connection and try again.')
               : (isAr ? 'رمز الدخول غير صحيح أو غير مفعل. راجع المسؤول.' : 'Incorrect or inactive access code. Ask the administrator.'));
+            if(device) setError(isAr?'تعذر فتح الملف بقفل الهاتف. استخدم الرمز أولاً وفعّل الميزة من ملفك.':'Could not unlock. Use your PIN first and enable device unlock in your profile.');
           }
           setPin('');
         }).finally(() => { busyRef.current = false; setBusy(false); });
-      }
-    }
   };
 
   const handleBackspace = () => {
@@ -57,11 +62,15 @@ export const DriverLoginView: React.FC = () => {
         </h2>
         <p className="text-xs text-slate-500 max-w-xs mx-auto">
           {isAr
-            ? 'اختر اسمك وأدخل رمزك الخاص المكوّن من 8 أرقام. لا تحتاج بريداً إلكترونياً.'
-            : 'Select your name and enter your private 8-digit code. No email needed.'}
+            ? 'اختر اسمك وأدخل رمزك (6–8 أرقام)، ثم اضغط دخول.'
+            : 'Choose your name, enter your 6–8 digit PIN, then tap Sign in.'}
         </p>
         <p className="text-[11px] text-slate-400">{isAr ? 'سنتذكر دخولك على هذا الهاتف حتى تغيّر السائق أو تنتهي الجلسة.' : 'Stay signed in on this phone until you switch drivers or the session expires.'}</p>
       </div>
+
+      {deviceUnlock && <button type="button" disabled={busy} onClick={()=>submit(true)} className="w-full min-h-14 p-3 rounded-2xl bg-emerald-600 text-white font-bold disabled:opacity-50">
+        {isAr?'الدخول ببصمة أو قفل الهاتف':'Unlock with your phone'}
+      </button>}
 
       {/* Driver Selection Grid - 8 Drivers */}
       <div className="space-y-2">
@@ -111,10 +120,10 @@ export const DriverLoginView: React.FC = () => {
           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
             {isAr
               ? `رمز الدخول لـ (${driverDisplayName}):`
-              : `${pinLength}-digit access code for (${driverDisplayName}):`}
+              : `PIN for (${driverDisplayName}):`}
           </span>
           <div dir="ltr" className="flex justify-center gap-2 py-2" aria-label={isAr ? 'رمز الدخول مخفي' : 'Access code hidden'}>
-            {Array.from({ length: pinLength }, (_, idx) => idx).map((idx) => (
+            {Array.from({ length: Math.max(6,pin.length) }, (_, idx) => idx).map((idx) => (
               <div
                 key={idx}
                 className={`w-4 h-4 rounded-full border-2 transition-all ${
@@ -173,6 +182,9 @@ export const DriverLoginView: React.FC = () => {
           </button>
         </div>
 
+        <button type="button" disabled={busy || pin.length<6} onClick={()=>submit()} className="w-full min-h-12 p-3 rounded-xl bg-amber-500 text-slate-950 font-black disabled:opacity-50">
+          {isAr?'دخول':'Sign in'}
+        </button>
         {/* Profile recovery remains available through the admin portal. */}
         <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-center space-y-2">
           <div className="flex items-center justify-between text-[11px] text-slate-400 px-1 pt-1">

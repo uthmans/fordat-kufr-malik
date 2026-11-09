@@ -57,7 +57,7 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, langu
         <div className="flex items-center gap-2 min-w-0">
           <Navigation className="w-4 h-4 text-amber-500 shrink-0" />
           <h2 className="text-sm font-black text-slate-900 dark:text-slate-100">
-            {demo ? (isAr ? 'معاينة المسار التجريبية' : 'Demo route preview') : (isAr ? 'تحديثات المسار على هذا الجهاز' : 'Route updates on this device')}
+            {demo ? (isAr ? 'معاينة المسار التجريبية' : 'Demo route preview') : (isAr ? 'مسار السائقين' : 'Driver route')}
           </h2>
         </div>
         <span className="text-xs text-slate-500">
@@ -136,7 +136,7 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({ drivers, langu
 
       <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-          {demo ? (isAr ? 'مواقع تجريبية للتوضيح:' : 'Example locations for preview:') : (isAr ? 'آخر مواقع مُبلغ عنها على هذا الجهاز:' : 'Latest locations reported on this device:')}
+          {demo ? (isAr ? 'مواقع تجريبية للتوضيح:' : 'Example locations for preview:') : (isAr ? 'آخر المواقع المشتركة:' : 'Latest shared locations:')}
         </span>
         <div className="flex flex-col gap-1.5">
           {drivers.map((driver) => (

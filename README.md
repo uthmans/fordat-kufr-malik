@@ -45,7 +45,7 @@ or other local app data.
 
 ## Driver access codes (no email or SMS)
 
-Drivers select their roster name and enter a private eight-digit access code.
+Drivers select their roster name and enter their private 6–8 digit PIN (initial handover codes have eight digits).
 The server verifies a bcrypt hash and issues a random 256-bit session lasting
 up to 90 days. The browser remembers only the opaque session, never the code.
 Restoration checks the server before opening the dashboard. Switch Driver clears
@@ -94,10 +94,47 @@ by choosing Call. Real phone-to-phone GPS still requires a driver trial.
 
 ## Shared availability and delivery status
 
+The route diagram and full driver directory are visible by default. Drivers have
+a visible Profile/PIN/device-unlock button; no dropdown is needed for those actions.
+
+## Driver PIN and device unlock
+
+Existing eight-digit handover codes remain valid until changed by their driver.
+Drivers can select a 6–8 digit PIN in Profile > PIN & unlock. A change requires
+the current PIN or a device-verified sign-in within five minutes. The server
+stores bcrypt hashes only, increments the credential version to invalidate older
+sessions, and returns a replacement opaque session so the current phone stays
+signed in. Self-service changes preserve enrolled passkeys; an administrator's
+credential version reset invalidates both old sessions and old passkeys.
+
+Device unlock uses platform WebAuthn passkeys, with required user verification,
+through pinned SimpleWebAuthn 13.2.2. The operating system chooses biometric or
+screen-lock verification; the app never receives a fingerprint or phone pattern.
+Registration requires an authorized session and PIN/recent device verification.
+Challenges expire in five minutes and are single-use, scoped to origin, driver,
+credential version and (for registration) session. Verification checks RP ID,
+origin, challenge, signature, UV flag and counters before issuing a session.
+Public browser roles cannot access the private key/challenge tables or security
+RPC. Only public keys are stored, never device private keys or biometrics.
+
+The `driver-security` Edge Function and `driver_device_unlock` migration are
+deployed. SQL regressions roll back all fixtures; real signed assertion tests
+cover wrong origin, missing verification and replay. The deployed read-only check
+`scripts/verify-device-security.ts` verifies login/restore/status/registration
+options without changing a PIN or enrolling a key. Real phone enrolment remains
+a manual test. The public app uses `uthmans.github.io` as its RP ID; localhost is
+supported for development, IP-address origins are not used for device unlock.
+
+Remembered sessions remain valid for up to 90 days and are verified with the
+server at startup. Logout, expiry, revocation or blocked browser storage can
+require another sign-in. Remembered sign-in never silently starts GPS sharing.
+The private admin handover contains initial codes only: it is not updated with
+a driver's new PIN, which administrators cannot retrieve from its hash.
+
 The passenger home prioritizes fresh driver cards with direction, confirmed seats
-and Call/WhatsApp. The full directory, route map, detailed locations/shift badges,
-seat diagrams, aggregate seat count and installation help remain available in
-expandable sections. Healthy connection explanations no longer occupy the main
+and Call/WhatsApp. The route map and full driver directory are visible immediately.
+Detailed locations/shift badges, seat diagrams, aggregate seat count and installation
+help remain available in expandable sections. Healthy connection explanations no longer occupy the main
 screen; offline/error and owner-only demo warnings remain visible. Reservation
 name memory, seat selection, confirmation warnings and WhatsApp handoff are
 unchanged; message preview/help can be expanded.

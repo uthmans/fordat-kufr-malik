@@ -49,6 +49,7 @@ export const DriverView: React.FC = () => {
 
   const isAr = language === 'ar';
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileTab, setProfileTab] = useState<'profile' | 'security'>('profile');
 
   // Explicit login activates duty in the provider. Restoring a remembered session
   // must preserve manual pauses and the 45-minute inactivity timeout.
@@ -77,6 +78,9 @@ export const DriverView: React.FC = () => {
         </button>
       </div>
       <SharedConnectionPanel compact />
+      <button type="button" onClick={()=>{setProfileTab('security');setShowProfileModal(true);}} className="w-full min-h-11 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-bold text-sm">
+        {isAr?'ملفي والرمز والبصمة':'My profile, PIN & device unlock'}
+      </button>
       {/* 1. Inactivity Auto-Pause Alert Banner */}
       {driver.autoPausedForInactivity && (
         <div className="p-4 rounded-3xl bg-amber-500 text-slate-950 shadow-md border-2 border-amber-600 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in slide-in-from-top-2 duration-200">
@@ -244,7 +248,8 @@ export const DriverView: React.FC = () => {
           {pendingRequestCount > 0 && <span className="ms-2 text-xs text-rose-700 dark:text-rose-300">({pendingRequestCount} {isAr ? 'طلبات' : 'requests'})</span>}
         </summary>
         <div className="space-y-4 pb-4">
-          <button type="button" onClick={() => setShowProfileModal(true)} className="min-h-12 w-full rounded-xl bg-slate-100 dark:bg-slate-800 font-bold text-sm">{isAr ? 'ملفي وأرشيف الرحلات' : 'My profile and trip archives'}</button>
+          <button type="button" onClick={() => { setProfileTab('profile'); setShowProfileModal(true); }} className="min-h-12 w-full rounded-xl bg-slate-100 dark:bg-slate-800 font-bold text-sm">{isAr ? 'ملفي وأرشيف الرحلات' : 'My profile and trip archives'}</button>
+          <button type="button" onClick={() => { setProfileTab('security'); setShowProfileModal(true); }} className="min-h-12 w-full rounded-xl bg-slate-100 dark:bg-slate-800 font-bold text-sm">{isAr ? 'تغيير الرمز وتفعيل البصمة' : 'Change PIN and device unlock'}</button>
       {/* 4. CULTURAL PRAYER-BASED SHIFT SCHEDULE PRESETS */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 shadow-xs space-y-2.5">
         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -370,6 +375,7 @@ export const DriverView: React.FC = () => {
       {/* 7. DRIVER PROFILE MODAL */}
       {showProfileModal && (
         <DriverProfileModal
+          initialTab={profileTab}
           driver={driver}
           onClose={() => setShowProfileModal(false)}
         />
