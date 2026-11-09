@@ -22,7 +22,7 @@ export function driverSessionHandler(gateway: Gateway, sourceHash: (source: stri
       const admin=body.action.startsWith('admin_');
       const action=admin?body.action.slice(6):body.action;
       const token = request.headers.get('Authorization')?.replace(/^Bearer /, '') ?? null;
-      if (action === 'login' && ((!admin && !driverId(body.driver_id)) || typeof body.code !== 'string' || !(admin?/^\d{12}$/:/^\d{8}$/).test(body.code))) {
+      if (action === 'login' && ((!admin && !driverId(body.driver_id)) || typeof body.code !== 'string' || !(admin?/^\d{12}$/:/^\d{6,8}$/).test(body.code))) {
         return reply({ ok: false, error: 'invalid_code' }, 401);
       }
       if (action !== 'login' && (!token || !/^[a-f0-9]{64}$/.test(token))) return reply({ ok: false, error: 'invalid_session' }, 401);

@@ -92,34 +92,7 @@ export const VillagerView: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-black">{isAr ? 'السائقون المتاحون' : 'Available drivers'}</h2>
-      {onDutyDrivers.length > 0 && <div className="grid grid-cols-3 gap-2" role="group" aria-label={isAr ? 'اتجاه الرحلة' : 'Trip direction'}>
-        {(['all', 'to_ramallah', 'to_kufr_malik'] as const).map(direction => <button key={direction} type="button"
-          aria-pressed={filterDirection === direction} onClick={() => setFilterDirection(direction)}
-          className={`min-w-0 min-h-11 p-2 rounded-xl text-xs font-bold whitespace-normal ${filterDirection === direction ? 'bg-slate-900 text-white dark:bg-amber-500 dark:text-slate-950' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'}`}>
-          {direction === 'all' ? (isAr ? 'الكل' : 'All') : direction === 'to_ramallah' ? (isAr ? 'إلى الموقف' : 'To Ramallah') : (isAr ? 'إلى كفر مالك' : 'To Kufr Malik')}
-        </button>)}
-      </div>}
-      {filteredDrivers.length > 0 ? <div className="space-y-3">
-        {filteredDrivers.map(driver => <PassengerDriverCard key={driver.id} driver={driver} now={dataNow} isAr={isAr}
-          demo={showDemoData} onWhatsApp={() => handleOpenWhatsAppModal(driver)} />)}
-      </div> : <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
-        <p className="font-bold">{isAr ? 'لا توجد تحديثات حديثة حالياً' : 'No recent updates right now'}</p>
-        <p className="text-sm text-slate-500">{isAr ? 'افتح جميع السائقين واتصل للتأكد.' : 'Open All drivers and call to check.'}</p>
-      </div>}
-      <details className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl px-4">
-        <summary className="min-h-14 py-4 cursor-pointer font-bold">{isAr ? 'جميع السائقين' : 'All drivers'} ({drivers.length})</summary>
-        <div className="pb-4 space-y-3">
-          {drivers.map(driver => <div key={driver.id} className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <p className="font-bold">{isAr ? driver.nameAr : driver.nameEn}</p>
-            <p className="text-xs text-slate-500">{onDutyDrivers.some(active => active.id === driver.id) ? (isAr ? 'تحديث حديث' : 'Recent update')
-              : offDutyDrivers.some(off => off.id === driver.id) ? (isAr ? 'آخر بلاغ: خارج الدوام' : 'Last report: off duty') : (isAr ? 'اتصل للتأكد من التوفر' : 'Call to check availability')}</p>
-            <DriverContactActions phone={driver.phone} name={isAr ? driver.nameAr : driver.nameEn} isAr={isAr} onWhatsApp={() => handleOpenWhatsAppModal(driver)} />
-          </div>)}
-        </div>
-      </details>
-      {mapDrivers.length > 0 && <details className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl px-4">
-        <summary className="min-h-14 py-4 cursor-pointer font-bold">{isAr ? 'عرض مسار السائقين' : 'View drivers on route'}</summary>
+      <section aria-label={isAr ? 'مسار السائقين' : 'Driver route'}>
         <div className="pb-4 space-y-3">
           <p className="text-xs text-slate-500">{confirmedDrivers.length > 0 ? (isAr ? `المقاعد المؤكدة: ${totalOpenSeats}` : `Confirmed open seats: ${totalOpenSeats}`) : (isAr ? 'المقاعد غير مؤكدة' : 'Seats unconfirmed')}</p>
           <RouteVisualizer drivers={mapDrivers} language={language} now={dataNow} demo={showDemoData}
@@ -133,7 +106,33 @@ export const VillagerView: React.FC = () => {
               setTimeout(() => card?.classList.remove('ring-2', 'ring-emerald-500'), 2000);
             }, 0);
           }} /></div>
-      </details>}
+      </section>
+      <h2 className="text-lg font-black">{isAr ? 'السائقون المتاحون' : 'Available drivers'}</h2>
+      {onDutyDrivers.length > 0 && <div className="grid grid-cols-3 gap-2" role="group" aria-label={isAr ? 'اتجاه الرحلة' : 'Trip direction'}>
+        {(['all', 'to_ramallah', 'to_kufr_malik'] as const).map(direction => <button key={direction} type="button"
+          aria-pressed={filterDirection === direction} onClick={() => setFilterDirection(direction)}
+          className={`min-w-0 min-h-11 p-2 rounded-xl text-xs font-bold whitespace-normal ${filterDirection === direction ? 'bg-slate-900 text-white dark:bg-amber-500 dark:text-slate-950' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'}`}>
+          {direction === 'all' ? (isAr ? 'الكل' : 'All') : direction === 'to_ramallah' ? (isAr ? 'إلى الموقف' : 'To Ramallah') : (isAr ? 'إلى كفر مالك' : 'To Kufr Malik')}
+        </button>)}
+      </div>}
+      {filteredDrivers.length > 0 ? <div className="space-y-3">
+        {filteredDrivers.map(driver => <PassengerDriverCard key={driver.id} driver={driver} now={dataNow} isAr={isAr}
+          demo={showDemoData} onWhatsApp={() => handleOpenWhatsAppModal(driver)} />)}
+      </div> : <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
+        <p className="font-bold">{isAr ? 'لا توجد تحديثات حديثة حالياً' : 'No recent updates right now'}</p>
+        <p className="text-sm text-slate-500">{isAr ? 'اتصل بأحد السائقين أدناه للتأكد.' : 'Call a driver below to check.'}</p>
+      </div>}
+      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl px-4">
+        <h2 className="min-h-14 py-4 font-bold">{isAr ? 'جميع السائقين' : 'All drivers'} ({drivers.length})</h2>
+        <div className="pb-4 space-y-3">
+          {drivers.map(driver => <div key={driver.id} className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <p className="font-bold">{isAr ? driver.nameAr : driver.nameEn}</p>
+            <p className="text-xs text-slate-500">{onDutyDrivers.some(active => active.id === driver.id) ? (isAr ? 'تحديث حديث' : 'Recent update')
+              : offDutyDrivers.some(off => off.id === driver.id) ? (isAr ? 'آخر بلاغ: خارج الدوام' : 'Last report: off duty') : (isAr ? 'اتصل للتأكد من التوفر' : 'Call to check availability')}</p>
+            <DriverContactActions phone={driver.phone} name={isAr ? driver.nameAr : driver.nameEn} isAr={isAr} onWhatsApp={() => handleOpenWhatsAppModal(driver)} />
+          </div>)}
+        </div>
+      </section>
       <details className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl px-4">
         <summary className="min-h-14 py-4 cursor-pointer font-bold">{isAr ? 'المساعدة وتثبيت التطبيق' : 'Help and install'}</summary>
         <div className="pb-4 space-y-3 text-sm">

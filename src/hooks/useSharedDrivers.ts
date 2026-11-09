@@ -6,6 +6,7 @@ import { mergeSharedDriverRows, readSharedDriverRow, type SharedDriverRow } from
 import { SharedPublisher, publishableDriver } from '../utils/sharedPublisher';
 import { DriverCodeSession, DRIVER_CODE_SESSION_KEY } from '../utils/driverCodeSession';
 import { planSharingStart, type SharingConflict, type SharingResolution } from '../utils/sharingReconciliation';
+import { createDeviceKey, authenticateDeviceKey } from '../utils/deviceUnlock';
 
 let client: SupabaseClient | undefined;
 export function sharedClient() {
@@ -187,11 +188,11 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
     sharingGeneration.current++; starting.current = false;
     publisher.current?.stop(); setSharing(false); setPublishError(false); setSharingConflict(null);
   };
-  const signInCode = async (driverId: string, code: string) => {
+  const signInCode = async (driverId: string, code: string, device = false) => {
     signingIn.current = true;
     const generation = ++authGeneration.current;
     stopSharing();
-    const result = await codeSession.current!.login(driverId, code);
+    const result = device ? await codeSession.current!.deviceLogin(driverId, authenticateDeviceKey) : await codeSession.current!.login(driverId, code);
     signingIn.current = false;
     if (!alive.current || generation !== authGeneration.current) return { ok: false as const, error: 'unavailable' as const };
     if (result.ok) {
@@ -207,6 +208,14 @@ export function useSharedDrivers(drivers: Driver[], localDriverId: string | null
     latest.current.onIdentity(null, false);
     return codeSession.current!.logout();
   };
+  const changePin = async (current: string, next: string) => {
+    stopSharing();
+    const error=await codeSession.current!.changePin(current,next);
+    setSessionPersisted(codeSession.current!.remembered);
+    return error;
+  };
+  const enrollDevice = (code: string) => codeSession.current!.enrollDevice(code,createDeviceKey);
+  const removeDeviceUnlock = () => codeSession.current!.removeDeviceUnlock();
   return { rows, status, ownerId, hasAccount, sharing, publishError, lastPublished, restoring, sessionPersisted, sharingConflict,
-    startSharing, stopSharing, signInCode, signOut };
+    startSharing, stopSharing, signInCode, signOut, changePin, enrollDevice, removeDeviceUnlock };
 }

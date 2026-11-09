@@ -3,15 +3,17 @@ import { useTransit } from '../context/TransitContext';
 import { Driver } from '../types';
 import { PhoneDisplay } from './PhoneDisplay';
 import { changedProfileFields } from '../utils/driverProfile';
+import { DriverSecurityPanel } from './DriverSecurityPanel';
 import { User, Phone, Archive, X, Check, Clock, Calendar, Users } from 'lucide-react';
 
 interface DriverProfileModalProps {
   driver: Driver;
   onClose: () => void;
+  initialTab?: 'profile' | 'history' | 'security';
 }
 
-export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, onClose }) => {
-  const { updateDriverProfile, tripHistory, language, logoutDriver } = useTransit();
+export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, onClose, initialTab = 'profile' }) => {
+  const { updateDriverProfile, tripHistory, language, logoutDriver, shared } = useTransit();
   const isAr = language === 'ar';
 
   const [nameAr, setNameAr] = useState(driver.nameAr);
@@ -20,7 +22,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
   const [phone, setPhone] = useState(driver.phone);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [saveError, setSaveError] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profile' | 'history'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'history' | 'security'>(initialTab);
 
   // Filter archived trips for this driver
   const myTripHistory = tripHistory.filter((t) => t.driverId === driver.id);
@@ -66,6 +68,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
           <button
             type="button"
             onClick={onClose}
+            aria-label={isAr ? 'إغلاق الملف' : 'Close profile'}
             className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center transition-colors tap-highlight"
           >
             <X size={18} />
@@ -104,6 +107,9 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
               </span>
             )}
           </button>
+          <button type="button" onClick={()=>setActiveTab('security')} className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold ${activeTab==='security'?'bg-white dark:bg-slate-900':'text-slate-500'}`}>
+            {isAr?'الرمز والبصمة':'PIN & unlock'}
+          </button>
         </div>
 
         {/* Modal Body */}
@@ -111,7 +117,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
           {activeTab === 'profile' ? (
             <form onSubmit={handleSave} className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-                <p className="text-[11px] text-slate-500">{isAr ? 'تم تذكر دخولك على هذا الجهاز' : 'Your login is remembered on this device'}</p>
+                <p className="text-[11px] text-slate-500">{shared.sessionPersisted ? (isAr ? 'تم تذكر دخولك على هذا الجهاز' : 'Your login is remembered on this device') : (isAr ? 'المتصفح لا يحفظ الدخول بشكل دائم' : 'Your browser is blocking saved sign-in')}</p>
                 <button type="button" onClick={() => { onClose(); logoutDriver(); }}
                   className="min-h-10 px-2 text-xs font-bold text-slate-600 dark:text-slate-300 underline underline-offset-4 hover:text-amber-600">
                   {isAr ? 'تغيير السائق' : 'Switch Driver'}
@@ -190,7 +196,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({ driver, 
                 )}
               </button>
             </form>
-          ) : (
+          ) : activeTab==='security' ? <DriverSecurityPanel /> : (
             /* Trip History Archive */
             <div className="space-y-3">
               {myTripHistory.length === 0 ? (
