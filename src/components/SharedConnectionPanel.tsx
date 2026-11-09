@@ -40,7 +40,7 @@ export function SharedConnectionPanel({ compact = false }: { compact?: boolean }
     </>}
     {owner && !busy && !shared.sharingConflict && <PublicationStatus compact={compact} isAr={isAr} state={publicationState({ driver: owner,
       row: shared.rows.find(row => row.driver_id === owner.id), sharing: shared.sharing,
-      online: isOnline, gpsError: !!gpsError, lastPublished: shared.lastPublished, now: dataNow })} />}
+      online: isOnline, gpsError: !!gpsError, recovering: shared.recovering, lastPublished: shared.lastPublished, now: dataNow })} />}
     {!compact && owner && shared.lastPublished && shared.rows.some(row => row.driver_id === owner.id && row.received_at === shared.lastPublished) && <p className="text-xs text-slate-500">{isAr ? 'آخر تحديث مؤكد: ' : 'Last confirmed update: '}{new Date(shared.lastPublished).toLocaleString(isAr ? 'ar' : 'en')}</p>}
     {owner && gpsError && <p role="alert" className="text-xs font-bold text-rose-600">{gpsError}</p>}
     {owner && !gpsError && (sharingError || shared.publishError) && <p role="alert" className="text-xs font-bold text-rose-600">{isAr

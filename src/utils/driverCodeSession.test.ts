@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { DriverCodeSession, DRIVER_CODE_SESSION_KEY, normalizeDriverAccessCode } from './driverCodeSession';
 import { toPublicDriver } from './sharedDriver';
 import { INITIAL_DRIVERS } from '../data/initialDrivers';
+import { PublicationError } from './publicationError';
 
 const token = 'a'.repeat(64);
 const expiry = () => new Date(Date.now() + 90 * 86400000).toISOString();
@@ -126,5 +127,16 @@ test('damaged stored identities are ignored', () => {
   const f = fixture();
   for (const value of ['broken', '{}', JSON.stringify({ driverId: 'driver-1', token, expiresAt: 'invalid' })]) {
     f.data.set(DRIVER_CODE_SESSION_KEY, value); assert.equal(f.client.read(), null);
+  }
+});
+
+test('publication distinguishes retryable network/server failures from revoked sessions and conflicts', async () => {
+  for (const [error, kind] of [['unavailable', 'retryable'], ['rate_limited', 'retryable'], ['invalid_session', 'invalid_session'],
+    ['conflict', 'conflict'], ['invalid_request', 'invalid_request'], ['invalid_snapshot', 'invalid_request']]) {
+    const f = fixture(body => body.action === 'publish' ? { ok: false, error } : success());
+    await f.client.login('driver-1', '83527491');
+    await assert.rejects(() => f.client.publish(toPublicDriver(INITIAL_DRIVERS[0]), null, new AbortController().signal),
+      value => value instanceof PublicationError && value.kind === kind);
+    assert.equal(!!f.client.read(), error !== 'invalid_session');
   }
 });

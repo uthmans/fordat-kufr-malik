@@ -139,6 +139,26 @@ screen; offline/error and owner-only demo warnings remain visible. Reservation
 name memory, seat selection, confirmation warnings and WhatsApp handoff are
 unchanged; message preview/help can be expanded.
 
+### Network recovery and last-seen drivers
+
+While sharing is enabled in the current app session, temporary upload failures
+retry automatically with a 2–60 second backoff. Online/return-to-app events trigger
+an immediate recovery check. Every interrupted publication is reconciled against
+the current server revision before any retry: an identical committed snapshot is
+acknowledged without duplication; a competing revision requires the existing
+explicit settings choice. The latest queued GPS and operational settings are used,
+and expired GPS is never republished as live. Revoked sessions, invalid requests,
+explicit Stop, sign-out and driver switching cannot be undone by reconnect events.
+Sharing consent is not restored automatically after closing/reloading the app.
+Browser background GPS limitations still apply.
+
+Driver reports older than the two-minute live window remain visible in a separate
+Last seen section with relative age and contact actions. Their route markers turn
+gray and carry Last seen labels. They do not contribute confirmed seats, show
+active departure notices, or claim current availability. An explicit off-duty
+report clears the location marker. No new persistent location cache is introduced;
+history comes from the latest shared row or the current page's in-memory feed.
+
 The driver main screen prioritizes duty, location sharing, passenger counting
 and departures. Compact publication messages preserve pending/stale/offline
 distinctions. Seat presets/diagrams, shifts, GPS details, local requests, trip
