@@ -9,6 +9,36 @@ import 'fixtures.dart';
 
 void main() {
   test(
+    'seat changes remain pending until their own server acknowledgment',
+    () async {
+      final responses = <Completer<Report>>[];
+      String status = '';
+      final p = ReliablePublisher(
+        read: (_) async => null,
+        send: (driver, revision) {
+          final response = Completer<Report>();
+          responses.add(response);
+          return response.future;
+        },
+        saved: (_) {},
+        state: (next, _) => status = next,
+      );
+      p.start('driver-1', report(fixture(passengers: 5)));
+      final six = fixture(passengers: 6), seven = fixture(passengers: 7);
+      p.queue(six);
+      expect(status, 'pending');
+      final first = p.flush();
+      p.queue(seven);
+      responses[0].complete(report(six, revision: 2));
+      await first;
+      expect(status, 'pending');
+      final second = p.flush();
+      responses[1].complete(report(seven, revision: 3));
+      await second;
+      expect(status, 'live');
+    },
+  );
+  test(
     'temporary outage resumes the latest state without another share tap',
     () async {
       var now = epoch(), sends = 0, reads = 0;

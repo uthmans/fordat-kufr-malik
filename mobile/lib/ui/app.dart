@@ -832,7 +832,7 @@ class _DriverHomeState extends State<DriverHome> {
         ],
       );
     }
-    final tracking = c.publisher.active;
+    final tracking = c.publisher.active && d.duty;
     final localRequests = c.requests
         .where((r) => r['driverId'] == d.id)
         .toList();
@@ -1127,6 +1127,7 @@ String sharingLabel(AppController c) => switch (c.sharingState) {
   ),
   'starting' || 'waiting' => c.t('جارٍ بدء المشاركة…', 'Starting sharing…'),
   'off_duty' => c.t('تم نشر أنك خارج الدوام', 'Off-duty status published'),
+  'pending' => c.t('جارٍ إرسال التغييرات…', 'Sending changes…'),
   'conflict' => c.t(
     'يلزم اختيار البيانات الصحيحة',
     'Choose the correct settings',

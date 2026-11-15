@@ -1,6 +1,22 @@
 import 'transit.dart';
 import '../data/backend.dart';
 
+Json publicationOperations(Driver driver) => {
+  for (final entry in driver.snapshot.entries)
+    if (![
+      'currentLocation',
+      'lastUpdated',
+      'lastActiveTime',
+      'proximityStatusEn',
+      'proximityStatusAr',
+      'currentStopEn',
+      'currentStopAr',
+      'detectedNodeId',
+      'bearing',
+    ].contains(entry.key))
+      entry.key: entry.value,
+};
+
 class ReliablePublisher {
   final Future<Report?> Function(String) read;
   final Future<Report> Function(Driver, int?) send;
@@ -41,7 +57,15 @@ class ReliablePublisher {
   }
 
   void queue(Driver driver) {
-    if (driver.id == _owner) _pending = driver;
+    if (driver.id == _owner) {
+      _pending = driver;
+      if (!_recover &&
+          (_baseline == null ||
+              canonical(publicationOperations(driver)) !=
+                  canonical(publicationOperations(_baseline!.driver)))) {
+        state('pending', null);
+      }
+    }
   }
 
   void reconnect() {
@@ -99,24 +123,9 @@ class ReliablePublisher {
         state(snapshot.duty ? 'live' : 'off_duty', null);
         return;
       }
-      Json operations(Driver d) => {
-        for (final entry in d.snapshot.entries)
-          if (![
-            'currentLocation',
-            'lastUpdated',
-            'lastActiveTime',
-            'proximityStatusEn',
-            'proximityStatusAr',
-            'currentStopEn',
-            'currentStopAr',
-            'detectedNodeId',
-            'bearing',
-          ].contains(entry.key))
-            entry.key: entry.value,
-      };
       if (_baseline != null &&
-          canonical(operations(snapshot)) ==
-              canonical(operations(_baseline!.driver)) &&
+          canonical(publicationOperations(snapshot)) ==
+              canonical(publicationOperations(_baseline!.driver)) &&
           clock() - _lastSent < 60000) {
         return;
       }
@@ -129,7 +138,18 @@ class ReliablePublisher {
       _failures = 0;
       if (identical(_pending, pending)) _pending = null;
       saved(result);
-      state(snapshot.duty ? 'live' : 'off_duty', null);
+      final hasUnsentSettings =
+          _pending != null &&
+          canonical(publicationOperations(_pending!)) !=
+              canonical(publicationOperations(result.driver));
+      state(
+        hasUnsentSettings
+            ? 'pending'
+            : snapshot.duty
+            ? 'live'
+            : 'off_duty',
+        null,
+      );
     } catch (error) {
       if (generation != _generation) return;
       if (error is ApiFailure && !error.retryable && error.code != 'conflict') {
