@@ -42,6 +42,7 @@ class AppController extends ChangeNotifier {
       _lastRead = 0;
   int _nextRestore = 0;
   StreamSubscription<Json>? _positions;
+  Future<void> _gpsStopping = Future.value();
   Json? _movementAnchor;
   Timer? _timer;
   Future<void> _writes = Future.value();
@@ -73,14 +74,22 @@ class AppController extends ChangeNotifier {
       },
       state: (state, remote) {
         sharingState = state;
+        if ([
+          'stopped',
+          'conflict',
+          'invalid_session',
+          'invalid_request',
+          'forbidden',
+          'off_duty',
+        ].contains(state)) {
+          unawaited(_cancelGps());
+        }
         if (state == 'conflict') conflict = remote;
         if (state == 'invalid_session') {
           _session = null;
           owner = null;
           hasSavedSession = false;
           unawaited(this.store.saveSession(null));
-          unawaited(_positions?.cancel());
-          _positions = null;
         }
         _emit();
       },
@@ -339,6 +348,10 @@ class AppController extends ChangeNotifier {
 
   void update(Json patch) {
     if (owner == null) return;
+    if (patch['isOnDuty'] == false) {
+      _trackingGeneration++;
+      unawaited(_cancelGps());
+    }
     owner = owner!.copy({
       ...patch,
       'lastUpdated': DateTime.now().toUtc().toIso8601String(),
@@ -392,7 +405,7 @@ class AppController extends ChangeNotifier {
           owner == null) {
         return;
       }
-      await _positions?.cancel();
+      await _cancelGps();
       if (generation != _generation ||
           tracking != _trackingGeneration ||
           owner == null) {
@@ -435,7 +448,10 @@ class AppController extends ChangeNotifier {
           unawaited(publisher.flush());
           _emit();
         },
-        onError: (_) {
+        onError: (Object failure) {
+          if (terminalLocationError(failure)) {
+            publisher.stop();
+          }
           sharingState = 'location_error';
           _emit();
         },
@@ -457,8 +473,7 @@ class AppController extends ChangeNotifier {
   Future<void> stopSharing() async {
     _trackingGeneration++;
     publisher.stop();
-    await _positions?.cancel();
-    _positions = null;
+    await _cancelGps();
     conflict = null;
     _emit();
   }
@@ -468,8 +483,7 @@ class AppController extends ChangeNotifier {
     // Duty changes clear precise coordinates on the server via publishable().
     update({'isOnDuty': false});
     await publisher.flush();
-    await _positions?.cancel();
-    _positions = null;
+    await _cancelGps();
     _emit();
   }
 
@@ -719,8 +733,19 @@ class AppController extends ChangeNotifier {
     _generation++;
     _timer?.cancel();
     publisher.stop();
-    unawaited(_positions?.cancel());
+    unawaited(_cancelGps());
     unawaited(api.dispose());
     super.dispose();
+  }
+
+  Future<void> _cancelGps() {
+    final subscription = _positions;
+    _positions = null;
+    if (subscription != null) {
+      _gpsStopping = _gpsStopping
+          .catchError((_) {})
+          .then((_) => subscription.cancel());
+    }
+    return _gpsStopping;
   }
 }

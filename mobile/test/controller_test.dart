@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:kufr_malik_transit/app_controller.dart';
 import 'package:kufr_malik_transit/data/backend.dart';
 import 'package:kufr_malik_transit/data/device.dart';
@@ -37,6 +38,7 @@ class MemoryStore extends DeviceStore {
 class FakeApi extends TransitApi {
   Report? remote;
   bool revoked = false;
+  bool conflictOnPublish = false;
   Completer<Json>? adminLogin;
   @override
   Future<List<Report>> feed({String? driverId}) async =>
@@ -54,11 +56,13 @@ class FakeApi extends TransitApi {
   }
 
   @override
-  Future<Report> publish(
-    DriverSession session,
-    Driver d,
-    int? revision,
-  ) async => remote = report(d, revision: (revision ?? 0) + 1);
+  Future<Report> publish(DriverSession session, Driver d, int? revision) async {
+    if (conflictOnPublish) {
+      throw const ApiFailure('conflict');
+    }
+    return remote = report(d, revision: (revision ?? 0) + 1);
+  }
+
   @override
   Future<Json> action(
     Json body, {
@@ -79,6 +83,12 @@ class FakeGps extends PhoneLocation {
   final fixes = StreamController<Json>.broadcast(sync: true);
   Completer<void>? permission;
   int streams = 0;
+  int cancellations = 0;
+  FakeGps() {
+    fixes.onCancel = () {
+      cancellations++;
+    };
+  }
   @override
   Future<void> requestAccess() async {
     await permission?.future;
@@ -101,6 +111,65 @@ class FakeUnlock extends PhoneUnlock {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'revoking location permission stops native tracking and publication',
+    () async {
+      final gps = FakeGps();
+      final c = AppController(
+        api: FakeApi(),
+        store: MemoryStore(),
+        gps: gps,
+        unlock: FakeUnlock(),
+      );
+      try {
+        await c.initialize();
+        await c.login('driver-1', '123456');
+        await c.startSharing();
+        gps.fixes.addError(PermissionDeniedException('revoked'));
+        await Future<void>.delayed(Duration.zero);
+        expect(c.publisher.active, isFalse);
+        expect(gps.cancellations, 1);
+        expect(c.sharingState, 'location_error');
+      } finally {
+        c.dispose();
+        await gps.fixes.close();
+      }
+    },
+  );
+  test('a competing phone stops the native GPS subscription as well as publication', () async {
+    final api = FakeApi(), gps = FakeGps();
+    final c = AppController(
+      api: api,
+      store: MemoryStore(),
+      gps: gps,
+      unlock: FakeUnlock(),
+    );
+    try {
+      await c.initialize();
+      await c.login('driver-1', '123456');
+      await c.startSharing();
+      gps.fixes.add({
+        'lat': 31.984,
+        'lng': 35.3115,
+        'accuracy': 10,
+        'timestamp': epoch(),
+      });
+      await Future<void>.delayed(Duration.zero);
+      api.remote = report(fixture(passengers: 1), revision: 20);
+      api.conflictOnPublish = true;
+      c.update({'passengers': 6, 'seatCountUpdatedAt': epoch()});
+      await Future<void>.delayed(Duration.zero);
+      c.publisher.reconnect();
+      await c.publisher.flush();
+      await Future<void>.delayed(Duration.zero);
+      expect(c.publisher.active, isFalse);
+      expect(c.sharingState, 'conflict');
+      expect(gps.cancellations, 1);
+    } finally {
+      c.dispose();
+      await gps.fixes.close();
+    }
+  });
   test('remembered login restores the personal profile without silently starting GPS', () async {
     final api = FakeApi(), store = MemoryStore(), gps = FakeGps();
     store.saved = DriverSession(

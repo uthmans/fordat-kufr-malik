@@ -9,6 +9,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../domain/transit.dart';
 import 'backend.dart';
 
+bool terminalLocationError(Object error) =>
+    error is PermissionDeniedException ||
+    error is LocationServiceDisabledException;
+
 class DeviceStore {
   final FlutterSecureStorage vault;
   SharedPreferencesAsync? preferences;
